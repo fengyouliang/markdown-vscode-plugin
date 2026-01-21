@@ -44,9 +44,9 @@ jobs:
 
       - name: Auto bump version (patch)
         run: |
-          BASE_VERSION="$(node -p \"require('./package.json').version\")"
-          MAJOR="$(node -p \"require('./package.json').version.split('.')[0]\")"
-          MINOR="$(node -p \"require('./package.json').version.split('.')[1]\")"
+          BASE_VERSION="$(node -p "require('./package.json').version")"
+          MAJOR="$(node -p "require('./package.json').version.split('.')[0]")"
+          MINOR="$(node -p "require('./package.json').version.split('.')[1]")"
           PATCH="$(git rev-list --count HEAD)"
           NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
 
