@@ -15,6 +15,9 @@
 - 发布版本号由 CI 自动递增（patch），并在 CI 中同步 `package.json`/`package-lock.json`（不回写提交）。
 - 自动发布流程默认关闭，避免缺少 PAT 时每次 push 都失败；无 PAT 场景改为“CI 打包 + Marketplace 网页手动上传”。
 
+### Fixed
+- 调整扩展 `displayName`，避免 Marketplace 因重名导致上传失败。
+
 ## [0.2.0] - 2026-01-21
 
 ### Added
