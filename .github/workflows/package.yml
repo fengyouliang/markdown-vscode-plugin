@@ -1,0 +1,85 @@
+name: Package VS Code Extension (VSIX, main)
+
+on:
+  push:
+    branches:
+      - "main"
+
+concurrency:
+  group: vsix-package-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      VSCE_PUBLISHER: ${{ vars.VSCE_PUBLISHER }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Validate variables
+        run: |
+          if [ -z "$VSCE_PUBLISHER" ]; then
+            echo "Missing GitHub Actions variable: VSCE_PUBLISHER"
+            exit 1
+          fi
+
+      - name: Auto bump version (patch)
+        run: |
+          BASE_VERSION="$(node -p \"require('./package.json').version\")"
+          MAJOR="$(node -p \"require('./package.json').version.split('.')[0]\")"
+          MINOR="$(node -p \"require('./package.json').version.split('.')[1]\")"
+          PATCH="$(git rev-list --count HEAD)"
+          NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "Base version (package.json): ${BASE_VERSION}"
+          echo "Auto version: ${NEXT_VERSION}"
+
+          if ! [[ "${NEXT_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid auto version: ${NEXT_VERSION}"
+            exit 1
+          fi
+
+          # 仅在 CI 工作区同步 package.json 与 package-lock.json 的版本号（不回写提交）
+          npm version "${NEXT_VERSION}" --no-git-tag-version
+
+      - name: Sync publisher from repo variable
+        run: npm pkg set publisher="${VSCE_PUBLISHER}"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run compile
+
+      - name: Package VSIX
+        run: |
+          VERSION="$(node -p \"require('./package.json').version\")"
+          VSIX_NAME="md-auto-preview-${VERSION}.vsix"
+          echo "Packaging: ${VSIX_NAME}"
+          npx --yes @vscode/vsce package \
+            --allow-missing-repository \
+            --skip-license \
+            --readme-path "README.md" \
+            --changelog-path "helloagents/CHANGELOG.md" \
+            -o "${VSIX_NAME}"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: "*.vsix"
+          retention-days: 14
+

@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+### Added
+- 新增 GitHub Actions：`main` 分支 push 自动打包 `.vsix` 并上传为 Actions Artifact（无 PAT 也可用）。
+- 新增 GitHub Actions：可选自动发布到 VS Code Marketplace（需要 PAT，默认关闭，通过变量开关启用）。
+- 新增 `.vscodeignore`，控制打包内容，避免将知识库与源码目录打入 `.vsix`。
+
+### Changed
+- 发布版本号由 CI 自动递增（patch），并在 CI 中同步 `package.json`/`package-lock.json`（不回写提交）。
+- 自动发布流程默认关闭，避免缺少 PAT 时每次 push 都失败；无 PAT 场景改为“CI 打包 + Marketplace 网页手动上传”。
+
 ## [0.2.0] - 2026-01-21
 
 ### Added

@@ -1,0 +1,11 @@
+.github/**
+.vscode/**
+helloagents/**
+!helloagents/CHANGELOG.md
+src/**
+docs/**
+readme.md
+!README.md
+tsconfig.json
+.gitignore
+*.vsix

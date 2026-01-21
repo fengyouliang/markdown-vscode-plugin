@@ -58,3 +58,39 @@
 2. `npm run compile`
 3. 按 `F5` 运行 “Run Extension” 启动 Extension Host
 4. 在 Extension Host 中用 Explorer 打开任意 `.md`，应默认进入自定义编辑器并可切换 `Editor/Split/Preview`
+
+## 发布到 VS Code Marketplace（无 PAT 也可用）
+
+> 如果你暂时无法创建 Azure DevOps PAT（例如注册流程要求绑定信用卡），也仍然可以发布：让 CI 自动打包 `.vsix`，然后你在 Marketplace 网页后台手动上传。
+
+### 1) 准备 Marketplace Publisher
+在 Visual Studio Marketplace 创建 Publisher（得到 `publisherId`，例如 `feng`）。
+
+### 2) 配置 GitHub Repo 变量（必需）
+在 GitHub 仓库：
+- `Settings → Secrets and variables → Actions → Variables` 新增：
+  - `VSCE_PUBLISHER` = 你的 `publisherId`
+
+### 3) 主分支自动打包（无需 PAT）
+发布规则：只要 push 到 `main`，GitHub Actions 会自动构建并打包 `.vsix`（Artifacts 中可下载）。
+
+版本策略（自动递增 / 默认 patch）：
+- CI 会根据 `git rev-list --count HEAD` 生成一个递增的 patch 数字
+- 最终打包版本为：`<major>.<minor>.<patch>`（其中 `<major>.<minor>` 取自 `package.json.version`，`<patch>` 由 CI 自动生成）
+- 版本号仅在 CI 打包环境里写入（不会回写提交），因此你无需手动修改 `package.json.version` 和 `package-lock.json`
+
+手动上传步骤：
+1. 打开 GitHub Actions，进入 `Package VS Code Extension (VSIX, main)` 这条 workflow 的某次运行
+2. 下载 `vsix` artifact（里面是 `.vsix`）
+3. 打开 Visual Studio Marketplace 的 Publisher 管理后台，上传该 `.vsix` 作为新版本
+
+### 4) 可选：开启自动发布（需要 PAT）
+如果你后续能创建 Azure DevOps PAT，则可以开启自动发布到 Marketplace：
+- `Settings → Secrets and variables → Actions → Secrets` 新增：
+  - `VSCE_PAT` = Azure DevOps PAT
+- `Settings → Secrets and variables → Actions → Variables` 新增：
+  - `VSCE_PUBLISH_ENABLED` = `true`
+
+开启后，`Publish VS Code Extension (Marketplace, main, opt-in)` workflow 会在每次 `main` push 时自动发布。
+
+> 说明：`publisher` 字段在 CI 中会从 `VSCE_PUBLISHER` 注入，因此仓库里可以保留开发用的 `publisher`；但如果你想本地打包发布，请先把 `package.json.publisher` 设置为真实的 `publisherId`。
