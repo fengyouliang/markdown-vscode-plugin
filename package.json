@@ -1,6 +1,6 @@
 {
   "name": "md-auto-preview",
-  "displayName": "Markdown Auto Preview (YierBubu)",
+  "displayName": "Markdown Split Preview (JetBrains Style)",
   "description": "Markdown 自定义编辑器：同页 Split 预览（JetBrains 形态），并可兼容自动打开 VS Code 内置预览（单栏/右侧，跟随/锁定）。",
   "version": "0.2.0",
   "publisher": "local",
