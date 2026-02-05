@@ -19,6 +19,7 @@
 | 202601211827 | ci_package_vsix_manual_marketplace | Feature | ✅Completed | [202601211827_ci_package_vsix_manual_marketplace](2026-01/202601211827_ci_package_vsix_manual_marketplace/) |
 | 202601221646 | native_editor_auto_preview | Fix | ✅Completed | [202601221646_native_editor_auto_preview](2026-01/202601221646_native_editor_auto_preview/) |
 | 202601221731 | fix_native_editor_migration | Fix | ✅Completed | [202601221731_fix_native_editor_migration](2026-01/202601221731_fix_native_editor_migration/) |
+| 202602051558 | md_editor_split_preview | Feature | ✅Completed | [202602051558_md_editor_split_preview](2026-02/202602051558_md_editor_split_preview/) |
 
 ---
 
@@ -37,3 +38,7 @@
 - [202601211827_ci_package_vsix_manual_marketplace](2026-01/202601211827_ci_package_vsix_manual_marketplace/) - 主分支 push 自动打包 VSIX（Artifacts）+ Marketplace 手动上传（无 PAT）
 - [202601221646_native_editor_auto_preview](2026-01/202601221646_native_editor_auto_preview/) - 保持 VS Code 原生编辑器 + 自动打开右侧预览
 - [202601221731_fix_native_editor_migration](2026-01/202601221731_fix_native_editor_migration/) - 清理旧版 Custom Editor 关联，确保 `.md` 回到原生编辑器
+
+### 2026-02
+
+- [202602051558_md_editor_split_preview](2026-02/202602051558_md_editor_split_preview/) - Markdown Custom Editor：Editor / Split / Preview 三态（按工作区记忆）

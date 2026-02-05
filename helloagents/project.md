@@ -4,20 +4,20 @@
 - **Runtime:** Node.js
 - **Language:** TypeScript
 - **VS Code API:** `vscode` Extension API
-- **Preview Render:** 复用 VS Code 内置 Markdown Preview（由 `markdown.showPreview*` 命令驱动）
+- **Preview Render:** `markdown-it`（扩展侧本地渲染为 HTML，Webview 展示）
 
 ## Development Conventions
 - **Build:** `tsc` 编译到 `dist/`，入口为 `dist/extension.js`
 - **Main Entry:** `src/extension.ts`
-- **Configuration Prefix:** `mdAutoPreview.*`
+- **State Keys:** `mdAutoPreview.workspace.viewMode`（按工作区持久化上次视图模式）
 
 ## Errors and Logging
 - 默认不写入日志文件。
-- 当内置 Markdown 预览命令执行失败时，仅在 `notifyOnError=true` 时提示一次（避免打扰/刷屏）。
+- Webview 侧异常以 `console.warn` 为主，避免强打断编辑；必要时再演进 toast/通知。
 
 ## Testing and Process
 - **Smoke Test:** `npm run compile` 确保 TypeScript 编译通过。
-- **Manual Test:** 在 Extension Host 中打开 `.md` 文件验证：原生编辑器保持不变，预览按配置自动打开（建议 `openLocation=side`）。
+- **Manual Test:** 在 Extension Host 中打开 `.md` 文件验证：默认进入 Custom Editor，`Editor/Split/Preview` 三态切换可用，编辑保存与工作区记忆生效。
 - **Debug Tip:** `Run Extension (F5)` 已配置 `preLaunchTask`，会在启动前自动编译，避免因 `dist/` 缺失导致扩展未加载。
 
 ## Release / 发布流程

@@ -1,56 +1,44 @@
-# Markdown Auto Preview
+# Markdown Editor (Editor / Split / Preview)
 
-保持 VS Code **原生 Markdown 编辑器**不变，并在打开/切换 Markdown 文件时自动打开 VS Code **内置 Markdown Preview**（支持单栏或右侧双栏）。
+在 VS Code 中将 Markdown 以 **Custom Editor（Webview）** 打开，在**同一标签页**内提供 `Editor / Split / Preview` 三态切换，并且会按**工作区**记住你上次使用的视图（下次打开 `.md` 自动使用上次选择）。
+
+> 说明：这是“JetBrains 风格三态”的交互形态，因此不会再使用 VS Code 内置 Markdown Preview 的“另开一个预览编辑器标签页”的方式。
 
 ## 功能
-### 内置 Preview 自动打开
-- 打开或切换到 Markdown 文件时自动预览（默认：右侧双栏预览）
-- 可选双栏：`openLocation=side` 时为“左侧源码 + 右侧预览”
-- 双栏模式下默认不打断编辑：预览打开后焦点回到源码编辑器（`keepFocus=true`）
-- 支持“跟随 / 锁定”两种预览模式
-- 提供启用/禁用/切换命令 + 状态栏开关
-- 支持 scheme 白名单、glob 排除、后缀名限制
+- `Editor`：仅编辑区（轻量编辑器）
+- `Split`：左编辑 + 右预览
+- `Preview`：仅预览
+- 视图选择记忆：同一工作区内“记住上次选择”，重启 VS Code 仍生效
+- 预览渲染：基于 `markdown-it` 本地渲染（默认禁用原始 HTML，降低注入风险）
 
-## 配置（Settings）
-在 VS Code 设置中搜索 `mdAutoPreview`：
+## 使用方式
+安装后直接打开任意 `.md`：
+- 默认进入自定义编辑器界面
+- 顶部按钮切换 `Editor / Split / Preview`
 
-### 内置 Preview 自动打开
-- `mdAutoPreview.enabled`：是否启用（默认 `true`）
-- `mdAutoPreview.openLocation`：`same | side`（默认 `side`）
-  - `same`：单栏预览（在当前编辑组打开 Preview）
-  - `side`：双栏预览（在右侧打开 Preview）
-- `mdAutoPreview.mode`：`follow | locked`（默认 `follow`）
-- `mdAutoPreview.keepFocus`：是否保持编辑焦点（默认 `true`，仅 `openLocation=side` 时生效）
-- `mdAutoPreview.reopenPolicy`：`always | respectClosedInSession`
-  - `respectClosedInSession`：同一文件本次会话只会自动打开一次（适合“我关掉就别再弹”）
-- `mdAutoPreview.allowedSchemes`：允许的 URI scheme（默认 `file/untitled/vscode-remote`）
-- `mdAutoPreview.excludeGlobs`：排除路径 glob（默认排除 `node_modules/.git`）
-- `mdAutoPreview.onlyExtensions`：仅对特定后缀生效（默认不限制）
-- `mdAutoPreview.showStatusBar`：是否显示状态栏开关
-- `mdAutoPreview.notifyOnError`：预览命令失败是否提示一次
+## 回退到原生 Text Editor（重要）
+本扩展会把 `.md` 默认关联到自定义编辑器。如果你希望临时/永久回到原生编辑器：
 
-## 命令（Commands）
-- `Markdown Auto Preview: Enable`
-- `Markdown Auto Preview: Disable`
-- `Markdown Auto Preview: Toggle`
-- `Markdown Auto Preview: Open Preview to Side (Follow)`
-- `Markdown Auto Preview: Open Preview to Side (Locked)`
-- `Markdown Auto Preview: Toggle Preview Location (Same / Side)`
+1) 临时回退：在当前 `.md` 标签页点击工具栏右侧 `⋯`（或执行 VS Code 的 `Reopen With...`）→ 选择 `Text Editor`  
+2) 永久回退：在 VS Code 设置中为 `workbench.editorAssociations` 添加一条规则（示例）：
 
-## 排障（Troubleshooting）
-### 仍然出现旧版 “Editor / Split / Preview” 界面
-如果你升级自旧版本，VS Code 可能在设置里残留了旧版 Custom Editor 的打开关联，导致 `.md` 仍会以旧 UI 打开。
+```json
+{
+  "workbench.editorAssociations": [
+    { "viewType": "default", "filenamePattern": "*.md" }
+  ]
+}
+```
 
-建议按以下顺序处理：
-1. 在该 Markdown 标签页上执行：`Reopen With...` → 选择 `Text Editor`
-2. 检查并清理用户设置中的 `workbench.editorAssociations`（删除 `viewType: "mdAutoPreview.markdownSplit"` 相关项）
-3. 执行 `Reload Window`（有时需要重载窗口后关联才会完全生效）
+## 已知限制
+- 编辑区为 Webview 内的轻量编辑器（`textarea`），不追求与 VS Code 原生编辑器完全等价（例如：部分编辑扩展能力、复杂快捷键生态）。
+- 预览基于 `markdown-it`，与 VS Code 内置 Markdown Preview 的渲染效果可能存在差异（尤其是依赖其它 Markdown 扩展时）。
 
 ## 开发与调试
 1. `npm install`
 2. `npm run compile`
 3. 按 `F5` 运行 “Run Extension” 启动 Extension Host
-4. 在 Extension Host 中用 Explorer 打开任意 `.md`，应保持原生编辑器，并按配置自动打开内置 Markdown 预览（建议 `openLocation=side`）
+4. 在 Extension Host 中用 Explorer 打开任意 `.md`，应默认进入自定义编辑器并可三态切换
 
 ## 发布到 VS Code Marketplace（无 PAT 也可用）
 
