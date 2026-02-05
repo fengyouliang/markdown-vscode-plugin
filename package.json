@@ -1,8 +1,8 @@
 {
   "name": "md-auto-preview",
-  "displayName": "Markdown Auto Preview (Native Editor)",
-  "description": "保持 VS Code 原生 Markdown 编辑器不变，并在打开/切换 Markdown 文件时自动打开 VS Code 内置 Markdown 预览（支持单栏/右侧、跟随/锁定）。",
-  "version": "0.2.0",
+  "displayName": "Markdown Editor (Editor / Split / Preview)",
+  "description": "在 VS Code 中将 Markdown 以 Custom Editor 打开：同一标签页内提供 Editor / Split / Preview 三态，并按工作区记住上次选择。",
+  "version": "1.0.0",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"
@@ -11,132 +11,31 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onLanguage:markdown",
-    "onCommand:mdAutoPreview.enable",
-    "onCommand:mdAutoPreview.disable",
-    "onCommand:mdAutoPreview.toggle",
-    "onCommand:mdAutoPreview.openPreviewFollow",
-    "onCommand:mdAutoPreview.openPreviewLocked",
-    "onCommand:mdAutoPreview.toggleOpenLocation"
+    "onCustomEditor:mdAutoPreview.markdownEditor"
   ],
   "main": "./dist/extension.js",
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true,
-      "description": "该扩展仅自动打开 Markdown 预览，不执行外部命令、不上传用户内容，可安全运行于受限工作区。"
+      "description": "该扩展仅在本地渲染 Markdown 并提供自定义编辑器 UI，不执行外部命令、不上传用户内容，可安全运行于受限工作区。"
     }
   },
   "contributes": {
-    "commands": [
+    "customEditors": [
       {
-        "command": "mdAutoPreview.enable",
-        "title": "Markdown Auto Preview: Enable"
-      },
-      {
-        "command": "mdAutoPreview.disable",
-        "title": "Markdown Auto Preview: Disable"
-      },
-      {
-        "command": "mdAutoPreview.toggle",
-        "title": "Markdown Auto Preview: Toggle"
-      },
-      {
-        "command": "mdAutoPreview.openPreviewFollow",
-        "title": "Markdown Auto Preview: Open Preview to Side (Follow)"
-      },
-      {
-        "command": "mdAutoPreview.openPreviewLocked",
-        "title": "Markdown Auto Preview: Open Preview to Side (Locked)"
-      },
-      {
-        "command": "mdAutoPreview.toggleOpenLocation",
-        "title": "Markdown Auto Preview: Toggle Preview Location (Same / Side)"
+        "viewType": "mdAutoPreview.markdownEditor",
+        "displayName": "Markdown Editor (Editor / Split / Preview)",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          }
+        ],
+        "priority": "default"
       }
-    ],
-    "configuration": {
-      "title": "Markdown Auto Preview",
-      "properties": {
-        "mdAutoPreview.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "是否启用自动预览。"
-        },
-        "mdAutoPreview.openLocation": {
-          "type": "string",
-          "enum": [
-            "same",
-            "side"
-          ],
-          "default": "side",
-          "description": "预览打开位置：same=在当前编辑组打开（单栏预览）；side=在右侧打开（双栏）。"
-        },
-        "mdAutoPreview.mode": {
-          "type": "string",
-          "enum": [
-            "follow",
-            "locked"
-          ],
-          "default": "follow",
-          "description": "预览模式：follow=预览跟随当前激活 Markdown；locked=为每个文件打开锁定预览。"
-        },
-        "mdAutoPreview.keepFocus": {
-          "type": "boolean",
-          "default": true,
-          "description": "自动打开预览后是否把焦点保持在源码编辑器（不打断编辑）。仅在 openLocation=side（双栏）时生效。"
-        },
-        "mdAutoPreview.reopenPolicy": {
-          "type": "string",
-          "enum": [
-            "always",
-            "respectClosedInSession"
-          ],
-          "default": "always",
-          "description": "用户关闭预览后的策略：always=下次激活仍会自动打开；respectClosedInSession=同一文件本次会话只自动打开一次。"
-        },
-        "mdAutoPreview.allowedSchemes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "file",
-            "untitled",
-            "vscode-remote"
-          ],
-          "description": "允许触发自动预览的 URI scheme 列表。"
-        },
-        "mdAutoPreview.excludeGlobs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "**/node_modules/**",
-            "**/.git/**"
-          ],
-          "description": "排除路径（Glob）。匹配到的 Markdown 不会自动预览。"
-        },
-        "mdAutoPreview.onlyExtensions": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "仅对这些后缀名生效（例如 [\".md\", \".markdown\"]）；为空表示不限制（仅依赖 languageId）。"
-        },
-        "mdAutoPreview.showStatusBar": {
-          "type": "boolean",
-          "default": true,
-          "description": "是否显示状态栏开关（点击可 Toggle）。"
-        },
-        "mdAutoPreview.notifyOnError": {
-          "type": "boolean",
-          "default": true,
-          "description": "当 VS Code 内置 Markdown 预览命令不可用/执行失败时是否提示一次错误信息。"
-        }
-      }
-    }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",
@@ -144,10 +43,11 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "minimatch": "^9.0.5"
+    "markdown-it": "^14.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
+    "@types/markdown-it": "^14.1.2",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.6.3"
   }
