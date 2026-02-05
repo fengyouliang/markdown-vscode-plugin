@@ -142,13 +142,42 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
       }
       .preview pre {
         padding: 10px 12px;
+        padding-right: 46px;
         overflow: auto;
+        position: relative;
         border-radius: 6px;
         background: var(--vscode-textCodeBlock-background);
+      }
+      .preview pre > button.code-copy-btn {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        padding: 2px 8px;
+        border: 1px solid var(--vscode-editorWidget-border, transparent);
+        border-radius: 4px;
+        background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.25));
+        color: var(--vscode-button-secondaryForeground, inherit);
+        font-size: 12px;
+        line-height: 18px;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 80ms ease-in-out;
+        user-select: none;
+      }
+      .preview pre:hover > button.code-copy-btn,
+      .preview pre:focus-within > button.code-copy-btn {
+        opacity: 1;
+      }
+      .preview pre > button.code-copy-btn:hover {
+        background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.35));
+      }
+      .preview pre > button.code-copy-btn.copied {
+        opacity: 1;
       }
       /* Mermaid 渲染后会在该节点内插入 SVG，这里避免套用 code block 样式 */
       .preview pre.mermaid {
         padding: 0;
+        padding-right: 0;
         background: transparent;
         border-radius: 0;
       }
@@ -215,6 +244,65 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 
         let mermaidRenderRaf = 0;
         let mermaidRenderSeq = 0;
+
+        const CODE_COPY_LABEL = "Copy";
+        const CODE_COPIED_LABEL = "Copied";
+
+        function ensureCodeCopyButtons() {
+          const codeEls = Array.from(previewEl.querySelectorAll("pre > code"));
+          for (const codeEl of codeEls) {
+            const pre = codeEl.parentElement;
+            if (!(pre instanceof HTMLElement)) {
+              continue;
+            }
+            if (pre.classList.contains("mermaid")) {
+              continue;
+            }
+            if (pre.querySelector(":scope > button.code-copy-btn")) {
+              continue;
+            }
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "code-copy-btn";
+            btn.textContent = CODE_COPY_LABEL;
+            btn.setAttribute("title", "Copy code");
+            btn.setAttribute("aria-label", "Copy code");
+            pre.appendChild(btn);
+          }
+        }
+
+        function flashCopied(btn) {
+          if (!(btn instanceof HTMLButtonElement)) {
+            return;
+          }
+          btn.classList.add("copied");
+          btn.textContent = CODE_COPIED_LABEL;
+          window.setTimeout(() => {
+            btn.classList.remove("copied");
+            btn.textContent = CODE_COPY_LABEL;
+          }, 1200);
+        }
+
+        function handlePreviewClick(e) {
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) {
+            return;
+          }
+          const btn = target.closest("button.code-copy-btn");
+          if (!(btn instanceof HTMLButtonElement)) {
+            return;
+          }
+          const pre = btn.closest("pre");
+          if (!(pre instanceof HTMLElement) || pre.classList.contains("mermaid")) {
+            return;
+          }
+          const codeEl = pre.querySelector("code");
+          const text = codeEl ? codeEl.textContent || "" : "";
+          vscode.postMessage({ type: "copyCode", text });
+          flashCopied(btn);
+          e.preventDefault();
+          e.stopPropagation();
+        }
 
         function getScrollRatio(el) {
           const max = el.scrollHeight - el.clientHeight;
@@ -622,6 +710,8 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
           syncFromPreviewToEditor();
         });
 
+        previewEl.addEventListener("click", handlePreviewClick);
+
         // 预览区域的布局会受图片加载、窗口尺寸变化影响，需重新计算锚点 offset
         previewEl.addEventListener(
           "load",
@@ -652,6 +742,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
               editorEl.value = msg.text || "";
               applyingRemote = false;
               previewEl.innerHTML = msg.html || "";
+              ensureCodeCopyButtons();
               rebuildAnchors();
               scheduleRenderMermaid();
               if (msg.viewMode === "editor" || msg.viewMode === "split" || msg.viewMode === "preview") {
@@ -681,6 +772,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
               }
 
               previewEl.innerHTML = msg.html || "";
+              ensureCodeCopyButtons();
               rebuildAnchors();
               scheduleRenderMermaid();
               // 内容更新后保持两侧滚动对齐（按最后滚动侧为基准）

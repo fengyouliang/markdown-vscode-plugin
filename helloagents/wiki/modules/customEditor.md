@@ -25,6 +25,7 @@
 Webview → Extension：
 - `ready`：Webview 完成加载，请求初始化数据
 - `edit`：编辑内容变更（节流后发送全量文本）
+- `copyCode`：复制代码块内容到剪贴板（Webview 传递文本，扩展侧写入剪贴板）
 - `setViewMode`：用户切换视图模式
 - `reopenWith`：触发 VS Code `Reopen With...`
 - `openExternal`：请求打开外部链接（仅允许 http/https）
@@ -45,6 +46,9 @@ Extension → Webview：
 - 渲染引擎：`markdown-it`
 - 安全默认：`html: false`
 - 本地相对路径图片（首版）：仅在 `file` scheme 下解析为 `webview.asWebviewUri`
+- Code Block Copy（代码块复制）：
+  - Webview：对普通代码块（`<pre><code>`，排除 Mermaid 占位节点）在右上角注入 `Copy` 按钮
+  - 交互：点击按钮后通过 `copyCode` 消息将代码文本发送到扩展侧写入剪贴板，并在按钮上短暂显示 `Copied` 反馈
 - Mermaid 图表（` ```mermaid `）：
   - Extension Host：将 mermaid fence 渲染为占位节点（`<pre class="mermaid" data-mermaid="...">`），并保留 `data-md-line` 作为滚动同步锚点
   - Webview：加载扩展包内本地 Mermaid 脚本并在 `init/update` 后执行渲染，渲染完成后刷新锚点 offsets

@@ -12,6 +12,7 @@ export type ViewMode = "editor" | "split" | "preview";
 export type WebviewToExtensionMessage =
   | { type: "ready" }
   | { type: "edit"; text: string }
+  | { type: "copyCode"; text: string }
   | { type: "setViewMode"; viewMode: ViewMode }
   | { type: "reopenWith" }
   | { type: "openExternal"; href: string };
@@ -45,6 +46,8 @@ export function isWebviewToExtensionMessage(value: unknown): value is WebviewToE
       return true;
     case "edit":
       return typeof value["text"] === "string";
+    case "copyCode":
+      return typeof value["text"] === "string";
     case "setViewMode":
       return isViewMode(value["viewMode"]);
     case "openExternal":
@@ -53,4 +56,3 @@ export function isWebviewToExtensionMessage(value: unknown): value is WebviewToE
       return false;
   }
 }
-

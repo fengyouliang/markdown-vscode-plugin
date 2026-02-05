@@ -8,6 +8,7 @@
 
 ### Added
 - 预览支持 Mermaid 图表：` ```mermaid ` 围栏代码块在 Preview/Split 中渲染为 SVG（本地脚本渲染，不依赖 CDN）。
+- 预览代码块支持一键复制：在普通代码块右上角显示 `Copy` 按钮，点击复制到剪贴板并给出轻量反馈。
 
 ### Changed
 - Split 模式滚动同步升级为基于段落/标题锚点（`data-md-line`）的映射，减少长文档中的漂移与跳动。

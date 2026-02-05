@@ -22,6 +22,7 @@
 | 202602051558 | md_editor_split_preview | Feature | ✅Completed | [202602051558_md_editor_split_preview](2026-02/202602051558_md_editor_split_preview/) |
 | 202602051737 | md_anchor_scroll_sync | Fix | ✅Completed | [202602051737_md_anchor_scroll_sync](2026-02/202602051737_md_anchor_scroll_sync/) |
 | 202602051748 | mermaid_support | Feature | ✅Completed | [202602051748_mermaid_support](2026-02/202602051748_mermaid_support/) |
+| 202602052244 | code_copy_button | Feature | ✅Completed | [202602052244_code_copy_button](2026-02/202602052244_code_copy_button/) |
 
 ---
 
@@ -46,3 +47,4 @@
 - [202602051558_md_editor_split_preview](2026-02/202602051558_md_editor_split_preview/) - Markdown Custom Editor：Editor / Split / Preview 三态（按工作区记忆）
 - [202602051737_md_anchor_scroll_sync](2026-02/202602051737_md_anchor_scroll_sync/) - Split 滚动同步升级为“段落/标题锚点”映射（更接近 JetBrains）
 - [202602051748_mermaid_support](2026-02/202602051748_mermaid_support/) - Mermaid 图表渲染支持（` ```mermaid ` fenced code）
+- [202602052244_code_copy_button](2026-02/202602052244_code_copy_button/) - 预览代码块右上角 Copy 按钮：一键复制到剪贴板

@@ -189,6 +189,20 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         }
         return;
       }
+      case "copyCode": {
+        const text = (msg.text ?? "").toString();
+        if (!text) {
+          vscode.window.setStatusBarMessage("复制失败：内容为空", 1500);
+          return;
+        }
+        try {
+          await vscode.env.clipboard.writeText(text);
+          vscode.window.setStatusBarMessage("已复制到剪贴板", 1500);
+        } catch {
+          vscode.window.setStatusBarMessage("复制到剪贴板失败", 2000);
+        }
+        return;
+      }
       default:
         return;
     }
