@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Added
+- 预览支持 Mermaid 图表：` ```mermaid ` 围栏代码块在 Preview/Split 中渲染为 SVG（本地脚本渲染，不依赖 CDN）。
+
 ### Changed
 - Split 模式滚动同步升级为基于段落/标题锚点（`data-md-line`）的映射，减少长文档中的漂移与跳动。
 

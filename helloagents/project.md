@@ -4,7 +4,7 @@
 - **Runtime:** Node.js
 - **Language:** TypeScript
 - **VS Code API:** `vscode` Extension API
-- **Preview Render:** `markdown-it`（扩展侧本地渲染为 HTML，Webview 展示）
+- **Preview Render:** `markdown-it`（扩展侧本地渲染为 HTML，Webview 展示）+ `mermaid`（Webview 侧渲染 ` ```mermaid ` 图表）
 
 ## Development Conventions
 - **Build:** `tsc` 编译到 `dist/`，入口为 `dist/extension.js`

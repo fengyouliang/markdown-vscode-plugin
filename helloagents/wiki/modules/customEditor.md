@@ -45,6 +45,10 @@ Extension → Webview：
 - 渲染引擎：`markdown-it`
 - 安全默认：`html: false`
 - 本地相对路径图片（首版）：仅在 `file` scheme 下解析为 `webview.asWebviewUri`
+- Mermaid 图表（` ```mermaid `）：
+  - Extension Host：将 mermaid fence 渲染为占位节点（`<pre class="mermaid" data-mermaid="...">`），并保留 `data-md-line` 作为滚动同步锚点
+  - Webview：加载扩展包内本地 Mermaid 脚本并在 `init/update` 后执行渲染，渲染完成后刷新锚点 offsets
+  - 安全：Mermaid 以 `securityLevel: "strict"` 初始化（不依赖 CDN）
 
 ### Split Scroll Sync
 - 同步目标：Split 下“编辑区 ↔ 预览区”双向同步滚动

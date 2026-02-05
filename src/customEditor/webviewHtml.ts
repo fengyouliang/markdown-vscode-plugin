@@ -13,8 +13,12 @@ function getNonce(): string {
   return nonce;
 }
 
-export function getWebviewHtml(webview: vscode.Webview): string {
+export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const nonce = getNonce();
+
+  const mermaidScriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "node_modules", "mermaid", "dist", "mermaid.min.js")
+  );
 
   const csp = [
     "default-src 'none'",
@@ -22,7 +26,7 @@ export function getWebviewHtml(webview: vscode.Webview): string {
     `img-src ${webview.cspSource} https: data:`,
     // 样式：允许内联（用于轻量 UI），不引入外部资源
     `style-src ${webview.cspSource} 'unsafe-inline'`,
-    // 脚本：仅允许带 nonce 的内联脚本
+    // 脚本：仅允许带 nonce 的脚本（含本地脚本 src + 内联脚本）
     `script-src 'nonce-${nonce}'`
   ].join("; ");
 
@@ -142,6 +146,16 @@ export function getWebviewHtml(webview: vscode.Webview): string {
         border-radius: 6px;
         background: var(--vscode-textCodeBlock-background);
       }
+      /* Mermaid 渲染后会在该节点内插入 SVG，这里避免套用 code block 样式 */
+      .preview pre.mermaid {
+        padding: 0;
+        background: transparent;
+        border-radius: 0;
+      }
+      .preview pre.mermaid svg {
+        max-width: 100%;
+        height: auto;
+      }
       .preview a {
         color: var(--vscode-textLink-foreground);
         text-decoration: none;
@@ -170,6 +184,7 @@ export function getWebviewHtml(webview: vscode.Webview): string {
       <div class="pane preview" id="previewPane"></div>
     </div>
 
+    <script nonce="${nonce}" src="${mermaidScriptUri}"></script>
     <script nonce="${nonce}">
       (function () {
         const vscode = acquireVsCodeApi();
@@ -197,6 +212,9 @@ export function getWebviewHtml(webview: vscode.Webview): string {
         let anchorOffsets = [];
         let anchorOffsetsDirty = true;
         let recomputeOffsetsRaf = 0;
+
+        let mermaidRenderRaf = 0;
+        let mermaidRenderSeq = 0;
 
         function getScrollRatio(el) {
           const max = el.scrollHeight - el.clientHeight;
@@ -235,6 +253,101 @@ export function getWebviewHtml(webview: vscode.Webview): string {
           }
           // line-height: normal 时做一个保守估计（CSS 中我们设的是 1.5）
           return Math.max(1, fontSize * 1.5);
+        }
+
+        function decodeBase64Utf8(base64) {
+          try {
+            const bin = atob(base64 || "");
+            const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+            return new TextDecoder("utf-8").decode(bytes);
+          } catch {
+            return "";
+          }
+        }
+
+        function getMermaidTheme() {
+          const cls = document.body.classList;
+          if (cls.contains("vscode-dark") || cls.contains("vscode-high-contrast")) {
+            return "dark";
+          }
+          return "default";
+        }
+
+        function prepareMermaidBlocks() {
+          const blocks = Array.from(previewEl.querySelectorAll("pre.mermaid[data-mermaid]"));
+          for (const el of blocks) {
+            if (!(el instanceof HTMLElement)) {
+              continue;
+            }
+            const encoded = el.getAttribute("data-mermaid") || "";
+            if (!encoded) {
+              continue;
+            }
+            const src = decodeBase64Utf8(encoded);
+            if (src) {
+              // Mermaid 会读取节点文本作为源码；使用 textContent 避免 HTML 转义歧义
+              el.textContent = src;
+            }
+          }
+          return blocks;
+        }
+
+        async function renderMermaidIfNeeded() {
+          const mermaidApi = /** @type {any} */ (window.mermaid);
+          if (!mermaidApi) {
+            return;
+          }
+
+          const blocks = prepareMermaidBlocks();
+          if (blocks.length === 0) {
+            return;
+          }
+
+          try {
+            mermaidApi.initialize({
+              startOnLoad: false,
+              securityLevel: "strict",
+              theme: getMermaidTheme()
+            });
+          } catch {
+            // ignore
+          }
+
+          try {
+            if (typeof mermaidApi.run === "function") {
+              await mermaidApi.run({ nodes: blocks });
+            } else if (typeof mermaidApi.init === "function") {
+              mermaidApi.init(undefined, blocks);
+            }
+          } catch (err) {
+            console.warn("Mermaid render failed", err);
+          } finally {
+            // Mermaid 渲染会改变布局高度，需要刷新锚点 offset，以保证滚动同步准确
+            anchorOffsetsDirty = true;
+            scheduleRecomputeAnchorOffsets();
+            if (currentMode === "split") {
+              if (lastScrollSource === "preview") {
+                syncFromPreviewToEditor();
+              } else {
+                syncFromEditorToPreview();
+              }
+            }
+          }
+        }
+
+        function scheduleRenderMermaid() {
+          mermaidRenderSeq++;
+          const seq = mermaidRenderSeq;
+          if (mermaidRenderRaf) {
+            cancelAnimationFrame(mermaidRenderRaf);
+          }
+          mermaidRenderRaf = requestAnimationFrame(() => {
+            mermaidRenderRaf = 0;
+            if (seq !== mermaidRenderSeq) {
+              return;
+            }
+            void renderMermaidIfNeeded();
+          });
         }
 
         function rebuildAnchors() {
@@ -540,6 +653,7 @@ export function getWebviewHtml(webview: vscode.Webview): string {
               applyingRemote = false;
               previewEl.innerHTML = msg.html || "";
               rebuildAnchors();
+              scheduleRenderMermaid();
               if (msg.viewMode === "editor" || msg.viewMode === "split" || msg.viewMode === "preview") {
                 applyMode(msg.viewMode, true);
               }
@@ -568,6 +682,7 @@ export function getWebviewHtml(webview: vscode.Webview): string {
 
               previewEl.innerHTML = msg.html || "";
               rebuildAnchors();
+              scheduleRenderMermaid();
               // 内容更新后保持两侧滚动对齐（按最后滚动侧为基准）
               if (currentMode === "split") {
                 if (lastScrollSource === "preview") {

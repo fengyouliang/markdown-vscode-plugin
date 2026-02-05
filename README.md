@@ -10,6 +10,7 @@
 - `Preview`：仅预览
 - 视图选择记忆：同一工作区内“记住上次选择”，重启 VS Code 仍生效
 - 预览渲染：基于 `markdown-it` 本地渲染（默认禁用原始 HTML，降低注入风险）
+- Mermaid：支持 ` ```mermaid ` 围栏代码块渲染为图表（本地脚本渲染，不依赖 CDN）
 
 ## 使用方式
 安装后直接打开任意 `.md`：
@@ -33,6 +34,7 @@
 ## 已知限制
 - 编辑区为 Webview 内的轻量编辑器（`textarea`），不追求与 VS Code 原生编辑器完全等价（例如：部分编辑扩展能力、复杂快捷键生态）。
 - 预览基于 `markdown-it`，与 VS Code 内置 Markdown Preview 的渲染效果可能存在差异（尤其是依赖其它 Markdown 扩展时）。
+- Mermaid 渲染当前仅覆盖 ` ```mermaid ` 围栏代码块；渲染失败时会回退为文本显示。
 
 ## 开发与调试
 1. `npm install`

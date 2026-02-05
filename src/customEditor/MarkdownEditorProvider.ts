@@ -53,7 +53,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       localResourceRoots: this.getLocalResourceRoots(document)
     };
 
-    webview.html = getWebviewHtml(webview);
+    webview.html = getWebviewHtml(webview, this.context.extensionUri);
     webviewPanel.title = path.basename(document.uri.fsPath || document.uri.path || "Markdown");
     this.openPanels.add(webviewPanel);
 

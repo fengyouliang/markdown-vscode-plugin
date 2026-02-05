@@ -71,9 +71,41 @@ const defaultFenceRule =
     return self.renderToken(tokens, idx, options);
   });
 
+function escapeHtml(text: string): string {
+  const raw = text ?? "";
+  return raw
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function encodeBase64Utf8(text: string): string {
+  try {
+    return Buffer.from(text ?? "", "utf8").toString("base64");
+  } catch {
+    return "";
+  }
+}
+
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
-  const token = tokens[idx] as unknown as { map?: [number, number] | null };
+  const token = tokens[idx] as unknown as { map?: [number, number] | null; info?: string; content?: string };
   const startLine = token.map?.[0];
+  const info = (token.info ?? "").trim();
+  const lang = (info.split(/\s+/g)[0] ?? "").toLowerCase();
+
+  if (lang === "mermaid") {
+    const line = typeof startLine === "number" && Number.isFinite(startLine) && startLine >= 0 ? startLine + 1 : undefined;
+    const source = token.content ?? "";
+    const encoded = encodeBase64Utf8(source);
+    const escaped = escapeHtml(source);
+    const lineAttr = line ? ` data-md-line="${line}"` : "";
+    const dataAttr = encoded ? ` data-mermaid="${encoded}"` : "";
+    // Mermaid 渲染在 Webview 侧完成，这里只输出占位节点；同时保留文本作为 fallback（渲染失败时可读）。
+    return `<pre class="mermaid"${lineAttr}${dataAttr}>${escaped}</pre>`;
+  }
+
   const html = defaultFenceRule(tokens, idx, options, env, self);
   if (typeof startLine !== "number" || !Number.isFinite(startLine) || startLine < 0) {
     return html;
