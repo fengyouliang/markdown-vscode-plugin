@@ -20,6 +20,7 @@
 | 202601221646 | native_editor_auto_preview | Fix | ✅Completed | [202601221646_native_editor_auto_preview](2026-01/202601221646_native_editor_auto_preview/) |
 | 202601221731 | fix_native_editor_migration | Fix | ✅Completed | [202601221731_fix_native_editor_migration](2026-01/202601221731_fix_native_editor_migration/) |
 | 202602051558 | md_editor_split_preview | Feature | ✅Completed | [202602051558_md_editor_split_preview](2026-02/202602051558_md_editor_split_preview/) |
+| 202602051737 | md_anchor_scroll_sync | Fix | ✅Completed | [202602051737_md_anchor_scroll_sync](2026-02/202602051737_md_anchor_scroll_sync/) |
 
 ---
 
@@ -42,3 +43,4 @@
 ### 2026-02
 
 - [202602051558_md_editor_split_preview](2026-02/202602051558_md_editor_split_preview/) - Markdown Custom Editor：Editor / Split / Preview 三态（按工作区记忆）
+- [202602051737_md_anchor_scroll_sync](2026-02/202602051737_md_anchor_scroll_sync/) - Split 滚动同步升级为“段落/标题锚点”映射（更接近 JetBrains）

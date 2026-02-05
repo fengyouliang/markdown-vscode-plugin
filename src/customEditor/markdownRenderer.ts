@@ -18,6 +18,32 @@ const md = new MarkdownIt({
   typographer: true
 });
 
+function applySourceLineAttr(token: { map?: [number, number] | null; attrSet: (name: string, value: string) => void }): void {
+  const startLine = token.map?.[0];
+  if (typeof startLine === "number" && Number.isFinite(startLine) && startLine >= 0) {
+    // Markdown-it 的行号是 0-based，这里转为 1-based 方便前端计算
+    token.attrSet("data-md-line", String(startLine + 1));
+  }
+}
+
+function wrapOpenRuleWithLineAttr(ruleName: string): void {
+  const defaultRule =
+    md.renderer.rules[ruleName] ??
+    ((tokens, idx, options, env, self) => {
+      return self.renderToken(tokens, idx, options);
+    });
+  md.renderer.rules[ruleName] = (tokens, idx, options, env, self) => {
+    const token = tokens[idx] as unknown as { map?: [number, number] | null; attrSet: (name: string, value: string) => void };
+    applySourceLineAttr(token);
+    return defaultRule(tokens, idx, options, env, self);
+  };
+}
+
+// 为滚动同步提供锚点：在常见块级元素上打 data-md-line
+wrapOpenRuleWithLineAttr("heading_open");
+wrapOpenRuleWithLineAttr("paragraph_open");
+wrapOpenRuleWithLineAttr("list_item_open");
+
 const defaultImageRule =
   md.renderer.rules.image ??
   ((tokens, idx, options, _env, self) => {
@@ -37,6 +63,30 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
     }
   }
   return defaultImageRule(tokens, idx, options, env, self);
+};
+
+const defaultFenceRule =
+  md.renderer.rules.fence ??
+  ((tokens, idx, options, env, self) => {
+    return self.renderToken(tokens, idx, options);
+  });
+
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx] as unknown as { map?: [number, number] | null };
+  const startLine = token.map?.[0];
+  const html = defaultFenceRule(tokens, idx, options, env, self);
+  if (typeof startLine !== "number" || !Number.isFinite(startLine) || startLine < 0) {
+    return html;
+  }
+
+  // 默认 fence 渲染通常以 <pre><code...> 开始，这里只做一次轻量替换
+  const marker = "<pre";
+  const at = html.indexOf(marker);
+  if (at < 0) {
+    return html;
+  }
+  const insertAt = at + marker.length;
+  return `${html.slice(0, insertAt)} data-md-line="${startLine + 1}"${html.slice(insertAt)}`;
 };
 
 function isRemoteLikeUrl(src: string): boolean {
@@ -78,4 +128,3 @@ export function renderMarkdownToHtml(markdownText: string, params: { webview: vs
   const env: RenderEnv = { webview: params.webview, documentUri: params.documentUri };
   return md.render(text, env);
 }
-

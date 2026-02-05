@@ -122,6 +122,7 @@ export function getWebviewHtml(webview: vscode.Webview): string {
       }
 
       .preview {
+        position: relative;
         box-sizing: border-box;
         padding: 10px 16px;
       }
@@ -184,9 +185,18 @@ export function getWebviewHtml(webview: vscode.Webview): string {
         const reopenWithBtn = /** @type {HTMLButtonElement} */ (document.getElementById("reopenWith"));
         const modeButtons = Array.from(document.querySelectorAll("button[data-mode]"));
 
-        // Split 模式滚动同步：按滚动比例映射（轻量实现，接近 JetBrains 的“左右联动”体验）
+        // Split 模式滚动同步：基于渲染锚点（data-md-line）的“按段落/标题”联动
         let syncingScroll = false;
         let lastScrollSource = "editor";
+
+        /** @type {HTMLElement[]} */
+        let anchorEls = [];
+        /** @type {number[]} */
+        let anchorLines = [];
+        /** @type {number[]} */
+        let anchorOffsets = [];
+        let anchorOffsetsDirty = true;
+        let recomputeOffsetsRaf = 0;
 
         function getScrollRatio(el) {
           const max = el.scrollHeight - el.clientHeight;
@@ -201,15 +211,217 @@ export function getWebviewHtml(webview: vscode.Webview): string {
           el.scrollTop = Math.max(0, Math.min(max, ratio * max));
         }
 
-        function syncScroll(fromEl, toEl) {
-          if (currentMode !== "split") {
+        function upperBound(arr, value) {
+          let lo = 0;
+          let hi = arr.length;
+          while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (arr[mid] <= value) {
+              lo = mid + 1;
+            } else {
+              hi = mid;
+            }
+          }
+          return lo;
+        }
+
+        function getEditorLineHeightPx() {
+          const style = window.getComputedStyle(editorEl);
+          const fontSize = Number.parseFloat(style.fontSize || "13");
+          const lineHeightRaw = style.lineHeight || "";
+          const lineHeight = Number.parseFloat(lineHeightRaw);
+          if (Number.isFinite(lineHeight) && lineHeight > 0) {
+            return lineHeight;
+          }
+          // line-height: normal 时做一个保守估计（CSS 中我们设的是 1.5）
+          return Math.max(1, fontSize * 1.5);
+        }
+
+        function rebuildAnchors() {
+          const els = Array.from(previewEl.querySelectorAll("[data-md-line]"));
+          /** @type {{ line: number; el: HTMLElement }[]} */
+          const items = [];
+          for (const el of els) {
+            if (!(el instanceof HTMLElement)) {
+              continue;
+            }
+            const raw = el.getAttribute("data-md-line") || "";
+            const line = Number.parseInt(raw, 10);
+            if (!Number.isFinite(line) || line <= 0) {
+              continue;
+            }
+            items.push({ line, el });
+          }
+          items.sort((a, b) => a.line - b.line);
+          anchorEls = [];
+          anchorLines = [];
+          let lastLine = -1;
+          for (const it of items) {
+            if (it.line === lastLine) {
+              continue;
+            }
+            anchorEls.push(it.el);
+            anchorLines.push(it.line);
+            lastLine = it.line;
+          }
+          anchorOffsets = [];
+          anchorOffsetsDirty = true;
+          scheduleRecomputeAnchorOffsets();
+        }
+
+        function recomputeAnchorOffsets() {
+          if (anchorEls.length === 0) {
+            anchorOffsets = [];
+            anchorOffsetsDirty = false;
             return;
           }
-          if (syncingScroll) {
+          anchorOffsets = anchorEls.map((el) => el.offsetTop);
+          anchorOffsetsDirty = false;
+        }
+
+        function scheduleRecomputeAnchorOffsets() {
+          if (recomputeOffsetsRaf) {
             return;
           }
+          recomputeOffsetsRaf = requestAnimationFrame(() => {
+            recomputeOffsetsRaf = 0;
+            recomputeAnchorOffsets();
+          });
+        }
+
+        function ensureAnchorOffsetsReady() {
+          if (anchorOffsetsDirty) {
+            recomputeAnchorOffsets();
+          }
+        }
+
+        function syncFromEditorToPreview() {
+          if (currentMode !== "split" || syncingScroll) {
+            return;
+          }
+          if (anchorLines.length === 0) {
+            // 兜底：没有锚点时退化为比例同步
+            syncingScroll = true;
+            setScrollRatio(previewEl, getScrollRatio(editorEl));
+            requestAnimationFrame(() => {
+              syncingScroll = false;
+            });
+            return;
+          }
+
+          ensureAnchorOffsetsReady();
+          const lineHeight = getEditorLineHeightPx();
+          const editorTop = Math.max(0, editorEl.scrollTop);
+          const editorMax = Math.max(0, editorEl.scrollHeight - editorEl.clientHeight);
+          const previewMax = Math.max(0, previewEl.scrollHeight - previewEl.clientHeight);
+
+          const firstLine = anchorLines[0] ?? 1;
+          const lastLine = anchorLines[anchorLines.length - 1] ?? firstLine;
+          const firstOffset = anchorOffsets[0] ?? 0;
+          const lastOffset = anchorOffsets[anchorOffsets.length - 1] ?? firstOffset;
+          const firstEditorPos = Math.max(0, Math.min(editorMax, (firstLine - 1) * lineHeight));
+          const lastEditorPos = Math.max(0, Math.min(editorMax, (lastLine - 1) * lineHeight));
+
+          let aEditorPos = 0;
+          let bEditorPos = editorMax;
+          let aPreviewPos = 0;
+          let bPreviewPos = previewMax;
+
+          if (editorTop <= firstEditorPos) {
+            aEditorPos = 0;
+            bEditorPos = firstEditorPos;
+            aPreviewPos = 0;
+            bPreviewPos = firstOffset;
+          } else if (editorTop >= lastEditorPos) {
+            aEditorPos = lastEditorPos;
+            bEditorPos = editorMax;
+            aPreviewPos = lastOffset;
+            bPreviewPos = previewMax;
+          } else {
+            const topLine = Math.max(1, Math.floor(editorTop / lineHeight) + 1);
+            const idx = Math.max(0, Math.min(anchorLines.length - 1, upperBound(anchorLines, topLine) - 1));
+            const nextIdx = Math.min(anchorLines.length - 1, idx + 1);
+            const aLine = anchorLines[idx] ?? 1;
+            const bLine = anchorLines[nextIdx] ?? aLine;
+            aEditorPos = Math.max(0, Math.min(editorMax, (aLine - 1) * lineHeight));
+            bEditorPos = Math.max(0, Math.min(editorMax, (bLine - 1) * lineHeight));
+            aPreviewPos = anchorOffsets[idx] ?? 0;
+            bPreviewPos = anchorOffsets[nextIdx] ?? aPreviewPos;
+          }
+
+          const denom = bEditorPos - aEditorPos;
+          const t = denom > 0 ? (editorTop - aEditorPos) / denom : 0;
+          const clamped = Math.max(0, Math.min(1, t));
+          const target = aPreviewPos + clamped * (bPreviewPos - aPreviewPos);
+
           syncingScroll = true;
-          setScrollRatio(toEl, getScrollRatio(fromEl));
+          previewEl.scrollTop = Math.max(0, Math.min(previewMax, target));
+          requestAnimationFrame(() => {
+            syncingScroll = false;
+          });
+        }
+
+        function syncFromPreviewToEditor() {
+          if (currentMode !== "split" || syncingScroll) {
+            return;
+          }
+          if (anchorEls.length === 0) {
+            // 兜底：没有锚点时退化为比例同步
+            syncingScroll = true;
+            setScrollRatio(editorEl, getScrollRatio(previewEl));
+            requestAnimationFrame(() => {
+              syncingScroll = false;
+            });
+            return;
+          }
+
+          ensureAnchorOffsetsReady();
+          const lineHeight = getEditorLineHeightPx();
+          const previewTop = Math.max(0, previewEl.scrollTop);
+          const previewMax = Math.max(0, previewEl.scrollHeight - previewEl.clientHeight);
+          const editorMax = Math.max(0, editorEl.scrollHeight - editorEl.clientHeight);
+
+          const firstLine = anchorLines[0] ?? 1;
+          const lastLine = anchorLines[anchorLines.length - 1] ?? firstLine;
+          const firstOffset = anchorOffsets[0] ?? 0;
+          const lastOffset = anchorOffsets[anchorOffsets.length - 1] ?? firstOffset;
+          const firstEditorPos = Math.max(0, Math.min(editorMax, (firstLine - 1) * lineHeight));
+          const lastEditorPos = Math.max(0, Math.min(editorMax, (lastLine - 1) * lineHeight));
+
+          let aPreviewPos = 0;
+          let bPreviewPos = previewMax;
+          let aEditorPos = 0;
+          let bEditorPos = editorMax;
+
+          if (previewTop <= firstOffset) {
+            aPreviewPos = 0;
+            bPreviewPos = firstOffset;
+            aEditorPos = 0;
+            bEditorPos = firstEditorPos;
+          } else if (previewTop >= lastOffset) {
+            aPreviewPos = lastOffset;
+            bPreviewPos = previewMax;
+            aEditorPos = lastEditorPos;
+            bEditorPos = editorMax;
+          } else {
+            const idx = Math.max(0, Math.min(anchorOffsets.length - 1, upperBound(anchorOffsets, previewTop) - 1));
+            const nextIdx = Math.min(anchorOffsets.length - 1, idx + 1);
+            const aOffset = anchorOffsets[idx] ?? 0;
+            const bOffset = anchorOffsets[nextIdx] ?? aOffset;
+            const aLine = anchorLines[idx] ?? 1;
+            const bLine = anchorLines[nextIdx] ?? aLine;
+            aPreviewPos = aOffset;
+            bPreviewPos = bOffset;
+            aEditorPos = Math.max(0, Math.min(editorMax, (aLine - 1) * lineHeight));
+            bEditorPos = Math.max(0, Math.min(editorMax, (bLine - 1) * lineHeight));
+          }
+
+          const denom = bPreviewPos - aPreviewPos;
+          const t = denom > 0 ? (previewTop - aPreviewPos) / denom : 0;
+          const clamped = Math.max(0, Math.min(1, t));
+          const target = aEditorPos + clamped * (bEditorPos - aEditorPos);
+          syncingScroll = true;
+          editorEl.scrollTop = Math.max(0, Math.min(editorMax, target));
           requestAnimationFrame(() => {
             syncingScroll = false;
           });
@@ -225,6 +437,13 @@ export function getWebviewHtml(webview: vscode.Webview): string {
           currentMode = mode;
           document.body.dataset.mode = mode;
           setActiveButton(mode);
+          if (mode === "split") {
+            if (lastScrollSource === "preview") {
+              syncFromPreviewToEditor();
+            } else {
+              syncFromEditorToPreview();
+            }
+          }
           if (!fromExtension) {
             vscode.postMessage({ type: "setViewMode", viewMode: mode });
           }
@@ -279,7 +498,7 @@ export function getWebviewHtml(webview: vscode.Webview): string {
             return;
           }
           lastScrollSource = "editor";
-          syncScroll(editorEl, previewEl);
+          syncFromEditorToPreview();
         });
 
         previewEl.addEventListener("scroll", () => {
@@ -287,7 +506,24 @@ export function getWebviewHtml(webview: vscode.Webview): string {
             return;
           }
           lastScrollSource = "preview";
-          syncScroll(previewEl, editorEl);
+          syncFromPreviewToEditor();
+        });
+
+        // 预览区域的布局会受图片加载、窗口尺寸变化影响，需重新计算锚点 offset
+        previewEl.addEventListener(
+          "load",
+          (e) => {
+            if (e.target instanceof HTMLImageElement) {
+              anchorOffsetsDirty = true;
+              scheduleRecomputeAnchorOffsets();
+            }
+          },
+          true
+        );
+
+        window.addEventListener("resize", () => {
+          anchorOffsetsDirty = true;
+          scheduleRecomputeAnchorOffsets();
         });
 
         window.addEventListener("message", (event) => {
@@ -303,6 +539,7 @@ export function getWebviewHtml(webview: vscode.Webview): string {
               editorEl.value = msg.text || "";
               applyingRemote = false;
               previewEl.innerHTML = msg.html || "";
+              rebuildAnchors();
               if (msg.viewMode === "editor" || msg.viewMode === "split" || msg.viewMode === "preview") {
                 applyMode(msg.viewMode, true);
               }
@@ -330,12 +567,13 @@ export function getWebviewHtml(webview: vscode.Webview): string {
               }
 
               previewEl.innerHTML = msg.html || "";
-              // 内容更新后保持两侧滚动大致对齐（按最后滚动侧为基准）
+              rebuildAnchors();
+              // 内容更新后保持两侧滚动对齐（按最后滚动侧为基准）
               if (currentMode === "split") {
                 if (lastScrollSource === "preview") {
-                  syncScroll(previewEl, editorEl);
+                  syncFromPreviewToEditor();
                 } else {
-                  syncScroll(editorEl, previewEl);
+                  syncFromEditorToPreview();
                 }
               }
               return;

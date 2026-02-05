@@ -3,6 +3,7 @@
 ## Responsibility
 - 实现 `CustomTextEditorProvider`：将 Markdown 文档以 Webview 方式打开
 - 提供 `Editor / Split / Preview` 三态 UI（同一标签页内切换）
+- Split 模式滚动联动：基于渲染锚点（段落/标题等块级元素）进行更精准的同步
 - 支持轻量编辑与保存：
   - Webview 输入 → 扩展侧 `WorkspaceEdit` 回写到 `TextDocument`
   - 支持外部变更同步（扩展侧监听 `onDidChangeTextDocument` 推送更新）
@@ -44,3 +45,12 @@ Extension → Webview：
 - 渲染引擎：`markdown-it`
 - 安全默认：`html: false`
 - 本地相对路径图片（首版）：仅在 `file` scheme 下解析为 `webview.asWebviewUri`
+
+### Split Scroll Sync
+- 同步目标：Split 下“编辑区 ↔ 预览区”双向同步滚动
+- 锚点来源：扩展侧渲染阶段为常见块级元素注入 `data-md-line`（1-based 行号）
+  - 标题（heading）
+  - 段落（paragraph）
+  - 列表项（tight list 时用于兜底）
+  - 代码块（fence，对应 `<pre>`）
+- 同步策略：按锚点区间做线性插值，尽量避免“比例同步”在长文/图片导致的漂移问题
