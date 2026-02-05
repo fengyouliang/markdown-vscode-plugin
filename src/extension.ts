@@ -6,11 +6,14 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { minimatch } from "minimatch";
-import { MarkdownSplitEditorProvider } from "./customEditor/MarkdownSplitEditorProvider";
 
 type PreviewMode = "follow" | "locked";
 type ReopenPolicy = "always" | "respectClosedInSession";
 type OpenLocation = "same" | "side";
+
+const LEGACY_CUSTOM_EDITOR_VIEW_TYPE = "mdAutoPreview.markdownSplit";
+const MIGRATION_STATE_CLEANED_ASSOCIATIONS = "mdAutoPreview.migration.cleanedLegacyEditorAssociations";
+const MIGRATION_STATE_PROMPTED_REOPEN = "mdAutoPreview.migration.promptedReopenLegacyCustomEditor";
 
 interface ExtensionConfig {
   enabled: boolean;
@@ -53,7 +56,7 @@ function getConfig(): ExtensionConfig {
   const cfg = vscode.workspace.getConfiguration(CONFIG_SECTION);
   return {
     enabled: cfg.get<boolean>("enabled", true),
-    openLocation: cfg.get<OpenLocation>("openLocation", "same"),
+    openLocation: cfg.get<OpenLocation>("openLocation", "side"),
     mode: cfg.get<PreviewMode>("mode", "follow"),
     keepFocus: cfg.get<boolean>("keepFocus", true),
     reopenPolicy: cfg.get<ReopenPolicy>("reopenPolicy", "always"),
@@ -63,6 +66,162 @@ function getConfig(): ExtensionConfig {
     showStatusBar: cfg.get<boolean>("showStatusBar", true),
     notifyOnError: cfg.get<boolean>("notifyOnError", true)
   };
+}
+
+function asUri(value: unknown): vscode.Uri | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const u = value as vscode.Uri;
+  if (typeof u.scheme === "string" && typeof u.toString === "function") {
+    return u;
+  }
+  return undefined;
+}
+
+function removeLegacyEditorAssociation(value: unknown): { changed: boolean; next: unknown } {
+  // VS Code 的 workbench.editorAssociations 通常是数组：
+  // [{ "viewType": "default", "filenamePattern": "*.md" }, ...]
+  if (Array.isArray(value)) {
+    const next = value.filter((item) => {
+      if (!item || typeof item !== "object") {
+        return true;
+      }
+      const viewType = (item as Record<string, unknown>)["viewType"];
+      return viewType !== LEGACY_CUSTOM_EDITOR_VIEW_TYPE;
+    });
+    return { changed: next.length !== value.length, next };
+  }
+
+  // 兼容极少数情况下可能出现的 object 形态（pattern -> viewType）
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const next: Record<string, unknown> = {};
+    let changed = false;
+    for (const [k, v] of Object.entries(record)) {
+      if (v === LEGACY_CUSTOM_EDITOR_VIEW_TYPE) {
+        changed = true;
+        continue;
+      }
+      next[k] = v;
+    }
+    return { changed, next: changed ? next : value };
+  }
+
+  return { changed: false, next: value };
+}
+
+async function cleanupLegacyEditorAssociationsOnce(context: vscode.ExtensionContext): Promise<boolean> {
+  if (context.globalState.get<boolean>(MIGRATION_STATE_CLEANED_ASSOCIATIONS, false)) {
+    return false;
+  }
+
+  let changed = false;
+  try {
+    const workbench = vscode.workspace.getConfiguration("workbench");
+
+    // Global
+    const globalValue = workbench.inspect<unknown>("editorAssociations")?.globalValue;
+    const globalRemoved = removeLegacyEditorAssociation(globalValue);
+    if (globalRemoved.changed) {
+      await workbench.update("editorAssociations", globalRemoved.next, vscode.ConfigurationTarget.Global);
+      changed = true;
+    }
+
+    // Workspace
+    const workspaceValue = workbench.inspect<unknown>("editorAssociations")?.workspaceValue;
+    const workspaceRemoved = removeLegacyEditorAssociation(workspaceValue);
+    if (workspaceRemoved.changed) {
+      await workbench.update("editorAssociations", workspaceRemoved.next, vscode.ConfigurationTarget.Workspace);
+      changed = true;
+    }
+
+    // WorkspaceFolder（对每个 folder 单独清理）
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const folderCfg = vscode.workspace.getConfiguration("workbench", folder.uri);
+      const folderValue = folderCfg.inspect<unknown>("editorAssociations")?.workspaceFolderValue;
+      const folderRemoved = removeLegacyEditorAssociation(folderValue);
+      if (folderRemoved.changed) {
+        await folderCfg.update("editorAssociations", folderRemoved.next, vscode.ConfigurationTarget.WorkspaceFolder);
+        changed = true;
+      }
+    }
+  } catch {
+    // 清理失败不影响核心功能；避免激活阶段因设置写入失败而报错。
+  } finally {
+    await context.globalState.update(MIGRATION_STATE_CLEANED_ASSOCIATIONS, true);
+  }
+
+  return changed;
+}
+
+function getActiveTabInfo(): { uri: vscode.Uri; viewType?: string; viewColumn?: vscode.ViewColumn } | undefined {
+  const editor = vscode.window.activeTextEditor;
+  if (editor) {
+    return { uri: editor.document.uri, viewColumn: editor.viewColumn };
+  }
+
+  const activeGroup = vscode.window.tabGroups.activeTabGroup;
+  const tab = activeGroup.activeTab;
+  if (!tab) {
+    return undefined;
+  }
+
+  const input = tab.input as unknown as Record<string, unknown>;
+  const uri = asUri(input?.["uri"]);
+  if (!uri) {
+    return undefined;
+  }
+
+  const viewType = typeof input?.["viewType"] === "string" ? (input["viewType"] as string) : undefined;
+  const viewColumn = activeGroup.viewColumn;
+  return { uri, viewType, viewColumn };
+}
+
+async function reopenUriInTextEditor(uri: vscode.Uri, viewColumn?: vscode.ViewColumn): Promise<void> {
+  try {
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(doc, { viewColumn, preserveFocus: false, preview: false });
+  } catch {
+    // 忽略：例如 URI 无法以 TextDocument 打开（极少数虚拟资源）
+  }
+}
+
+async function migrateLegacyCustomEditorState(context: vscode.ExtensionContext): Promise<void> {
+  const cleaned = await cleanupLegacyEditorAssociationsOnce(context);
+  if (cleaned) {
+    void vscode.window
+      .showInformationMessage(
+        "Markdown Auto Preview：已清理旧版 Markdown Split 自定义编辑器的关联设置。可能需要 Reload Window 后，`.md` 才会回到原生编辑器。",
+        "Reload Window"
+      )
+      .then(async (choice) => {
+        if (choice === "Reload Window") {
+          await vscode.commands.executeCommand("workbench.action.reloadWindow");
+        }
+      });
+  }
+
+  if (context.globalState.get<boolean>(MIGRATION_STATE_PROMPTED_REOPEN, false)) {
+    return;
+  }
+
+  const active = getActiveTabInfo();
+  if (!active || active.viewType !== LEGACY_CUSTOM_EDITOR_VIEW_TYPE) {
+    return;
+  }
+
+  await context.globalState.update(MIGRATION_STATE_PROMPTED_REOPEN, true);
+  void vscode.window
+    .showWarningMessage(
+      "Markdown Auto Preview：检测到你仍在使用旧版 Split 自定义编辑器打开 Markdown。当前版本已移除该编辑器，建议切换回 VS Code 原生 Text Editor。",
+      "用 Text Editor 重新打开"
+    )
+    .then(async (choice) => {
+      if (choice === "用 Text Editor 重新打开") {
+        await reopenUriInTextEditor(active.uri, active.viewColumn);
+      }
+    });
 }
 
 function normalizeExtensions(exts: string[]): string[] {
@@ -111,6 +270,32 @@ function isExcludedByGlob(doc: vscode.TextDocument, cfg: ExtensionConfig): boole
   return false;
 }
 
+function isDiffOrMergeTabActive(): boolean {
+  const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+  if (!tab) {
+    return false;
+  }
+
+  const input: unknown = tab.input;
+  if (input === null || typeof input !== "object") {
+    return false;
+  }
+
+  const inputRecord = input as Record<string, unknown>;
+
+  // Diff editors: TextDiff / NotebookDiff
+  if ("original" in inputRecord && "modified" in inputRecord) {
+    return true;
+  }
+
+  // Merge editors: TextMerge (3-way)
+  if ("base" in inputRecord && ("input1" in inputRecord || "input2" in inputRecord || "result" in inputRecord)) {
+    return true;
+  }
+
+  return false;
+}
+
 function shouldAutoOpen(editor: vscode.TextEditor | undefined, cfg: ExtensionConfig): editor is vscode.TextEditor {
   if (!cfg.enabled) {
     return false;
@@ -120,6 +305,9 @@ function shouldAutoOpen(editor: vscode.TextEditor | undefined, cfg: ExtensionCon
   }
   const doc = editor.document;
   if (!isMarkdownDocument(doc)) {
+    return false;
+  }
+  if (isDiffOrMergeTabActive()) {
     return false;
   }
   if (!isAllowedByScheme(doc, cfg)) {
@@ -248,7 +436,9 @@ async function updateOpenLocation(nextOpenLocation: OpenLocation): Promise<void>
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  context.subscriptions.push(MarkdownSplitEditorProvider.register(context));
+  // 兼容迁移：旧版本曾提供 Custom Editor（mdAutoPreview.markdownSplit）。
+  // 该能力已移除，但 VS Code 可能在 workbench.editorAssociations 中残留关联，导致 `.md` 仍以旧 UI 打开。
+  void migrateLegacyCustomEditorState(context);
 
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = CMD_TOGGLE;

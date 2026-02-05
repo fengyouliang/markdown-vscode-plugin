@@ -4,12 +4,11 @@
 - **Runtime:** Node.js
 - **Language:** TypeScript
 - **VS Code API:** `vscode` Extension API
-- **Markdown Render:** `markdown-it`（用于 Custom Editor 的预览渲染）
+- **Preview Render:** 复用 VS Code 内置 Markdown Preview（由 `markdown.showPreview*` 命令驱动）
 
 ## Development Conventions
 - **Build:** `tsc` 编译到 `dist/`，入口为 `dist/extension.js`
 - **Main Entry:** `src/extension.ts`
-- **Custom Editor:** `mdAutoPreview.markdownSplit`（Provider：`src/customEditor/MarkdownSplitEditorProvider.ts`）
 - **Configuration Prefix:** `mdAutoPreview.*`
 
 ## Errors and Logging
@@ -18,7 +17,7 @@
 
 ## Testing and Process
 - **Smoke Test:** `npm run compile` 确保 TypeScript 编译通过。
-- **Manual Test:** 在 Extension Host 中打开 `.md` 文件验证自定义编辑器（Editor/Split/Preview）与旧版自动预览（Legacy）行为。
+- **Manual Test:** 在 Extension Host 中打开 `.md` 文件验证：原生编辑器保持不变，预览按配置自动打开（建议 `openLocation=side`）。
 - **Debug Tip:** `Run Extension (F5)` 已配置 `preLaunchTask`，会在启动前自动编译，避免因 `dist/` 缺失导致扩展未加载。
 
 ## Release / 发布流程

@@ -1,7 +1,7 @@
 {
   "name": "md-auto-preview",
-  "displayName": "Markdown Split Preview (JetBrains Style)",
-  "description": "Markdown 自定义编辑器：同页 Split 预览（JetBrains 形态），并可兼容自动打开 VS Code 内置预览（单栏/右侧，跟随/锁定）。",
+  "displayName": "Markdown Auto Preview (Native Editor)",
+  "description": "保持 VS Code 原生 Markdown 编辑器不变，并在打开/切换 Markdown 文件时自动打开 VS Code 内置 Markdown 预览（支持单栏/右侧、跟随/锁定）。",
   "version": "0.2.0",
   "publisher": "local",
   "engines": {
@@ -13,7 +13,6 @@
   "activationEvents": [
     "onStartupFinished",
     "onLanguage:markdown",
-    "onCustomEditor:mdAutoPreview.markdownSplit",
     "onCommand:mdAutoPreview.enable",
     "onCommand:mdAutoPreview.disable",
     "onCommand:mdAutoPreview.toggle",
@@ -29,18 +28,6 @@
     }
   },
   "contributes": {
-    "customEditors": [
-      {
-        "viewType": "mdAutoPreview.markdownSplit",
-        "displayName": "Markdown Split Preview",
-        "selector": [
-          {
-            "filenamePattern": "*.md"
-          }
-        ],
-        "priority": "default"
-      }
-    ],
     "commands": [
       {
         "command": "mdAutoPreview.enable",
@@ -64,7 +51,7 @@
       },
       {
         "command": "mdAutoPreview.toggleOpenLocation",
-        "title": "Markdown Auto Preview: Toggle View (Preview Only / Split)"
+        "title": "Markdown Auto Preview: Toggle Preview Location (Same / Side)"
       }
     ],
     "configuration": {
@@ -81,7 +68,7 @@
             "same",
             "side"
           ],
-          "default": "same",
+          "default": "side",
           "description": "预览打开位置：same=在当前编辑组打开（单栏预览）；side=在右侧打开（双栏）。"
         },
         "mdAutoPreview.mode": {
@@ -147,27 +134,6 @@
           "type": "boolean",
           "default": true,
           "description": "当 VS Code 内置 Markdown 预览命令不可用/执行失败时是否提示一次错误信息。"
-        },
-        "mdAutoPreview.customEditor.defaultView": {
-          "type": "string",
-          "enum": [
-            "split",
-            "preview",
-            "editor"
-          ],
-          "default": "split",
-          "description": "自定义编辑器默认视图：split=同页分屏（源码+预览）；preview=仅预览；editor=仅源码。"
-        },
-        "mdAutoPreview.customEditor.livePreview": {
-          "type": "boolean",
-          "default": true,
-          "description": "自定义编辑器是否实时刷新预览。"
-        },
-        "mdAutoPreview.customEditor.debounceMs": {
-          "type": "number",
-          "default": 150,
-          "minimum": 0,
-          "description": "自定义编辑器输入更新的防抖毫秒数（越小越实时，但开销更高）。"
         }
       }
     }
@@ -178,11 +144,9 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "markdown-it": "^14.1.0",
     "minimatch": "^9.0.5"
   },
   "devDependencies": {
-    "@types/markdown-it": "^14.1.2",
     "@types/node": "^20.11.30",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.6.3"

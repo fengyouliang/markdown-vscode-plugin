@@ -17,6 +17,8 @@
 | 202601211524 | ci_auto_version_from_tag | Fix | ✅Completed | [202601211524_ci_auto_version_from_tag](2026-01/202601211524_ci_auto_version_from_tag/) |
 | 202601211538 | marketplace_auto_publish_main | Feature | ✅Completed | [202601211538_marketplace_auto_publish_main](2026-01/202601211538_marketplace_auto_publish_main/) |
 | 202601211827 | ci_package_vsix_manual_marketplace | Feature | ✅Completed | [202601211827_ci_package_vsix_manual_marketplace](2026-01/202601211827_ci_package_vsix_manual_marketplace/) |
+| 202601221646 | native_editor_auto_preview | Fix | ✅Completed | [202601221646_native_editor_auto_preview](2026-01/202601221646_native_editor_auto_preview/) |
+| 202601221731 | fix_native_editor_migration | Fix | ✅Completed | [202601221731_fix_native_editor_migration](2026-01/202601221731_fix_native_editor_migration/) |
 
 ---
 
@@ -33,3 +35,5 @@
 - [202601211524_ci_auto_version_from_tag](2026-01/202601211524_ci_auto_version_from_tag/) - 发布版本由 tag 决定，CI 自动同步 package.json/package-lock 版本号
 - [202601211538_marketplace_auto_publish_main](2026-01/202601211538_marketplace_auto_publish_main/) - 主分支 push 自动发布到 VS Code Marketplace（版本自动递增）
 - [202601211827_ci_package_vsix_manual_marketplace](2026-01/202601211827_ci_package_vsix_manual_marketplace/) - 主分支 push 自动打包 VSIX（Artifacts）+ Marketplace 手动上传（无 PAT）
+- [202601221646_native_editor_auto_preview](2026-01/202601221646_native_editor_auto_preview/) - 保持 VS Code 原生编辑器 + 自动打开右侧预览
+- [202601221731_fix_native_editor_migration](2026-01/202601221731_fix_native_editor_migration/) - 清理旧版 Custom Editor 关联，确保 `.md` 回到原生编辑器

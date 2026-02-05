@@ -8,7 +8,13 @@
       "runtimeExecutable": "${execPath}",
       "preLaunchTask": "npm: compile",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}"
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--disable-extension",
+        "yierbubu.md-auto-preview",
+        "--user-data-dir",
+        "${workspaceFolder}/.vscode-test/user-data",
+        "--extensions-dir",
+        "${workspaceFolder}/.vscode-test/extensions"
       ],
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"

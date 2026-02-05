@@ -6,7 +6,7 @@
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | mdAutoPreview.enabled | boolean | true | 是否启用自动预览 |
-| mdAutoPreview.openLocation | string | same | same=单栏预览（当前编辑组）/ side=双栏预览（右侧） |
+| mdAutoPreview.openLocation | string | side | same=单栏预览（当前编辑组）/ side=双栏预览（右侧） |
 | mdAutoPreview.mode | string | follow | follow=跟随 / locked=锁定 |
 | mdAutoPreview.keepFocus | boolean | true | 打开预览后是否保持焦点在源码编辑器（仅 openLocation=side 时生效） |
 | mdAutoPreview.reopenPolicy | string | always | always 或 respectClosedInSession |
