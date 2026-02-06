@@ -23,6 +23,7 @@
 | 202602051737 | md_anchor_scroll_sync | Fix | ✅Completed | [202602051737_md_anchor_scroll_sync](2026-02/202602051737_md_anchor_scroll_sync/) |
 | 202602051748 | mermaid_support | Feature | ✅Completed | [202602051748_mermaid_support](2026-02/202602051748_mermaid_support/) |
 | 202602052244 | code_copy_button | Feature | ✅Completed | [202602052244_code_copy_button](2026-02/202602052244_code_copy_button/) |
+| 202602052332 | markdown_render_enhance | Feature | ✅Completed | [202602052332_markdown_render_enhance](2026-02/202602052332_markdown_render_enhance/) |
 
 ---
 
@@ -48,3 +49,4 @@
 - [202602051737_md_anchor_scroll_sync](2026-02/202602051737_md_anchor_scroll_sync/) - Split 滚动同步升级为“段落/标题锚点”映射（更接近 JetBrains）
 - [202602051748_mermaid_support](2026-02/202602051748_mermaid_support/) - Mermaid 图表渲染支持（` ```mermaid ` fenced code）
 - [202602052244_code_copy_button](2026-02/202602052244_code_copy_button/) - 预览代码块右上角 Copy 按钮：一键复制到剪贴板
+- [202602052332_markdown_render_enhance](2026-02/202602052332_markdown_render_enhance/) - 预览渲染增强：KaTeX 数学公式 + 代码高亮 + 常用插件（脚注/任务列表/emoji/admonition）

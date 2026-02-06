@@ -5,6 +5,13 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import MarkdownIt from "markdown-it";
+import hljs from "highlight.js/lib/common";
+import texmath from "markdown-it-texmath";
+import katex from "katex";
+import markdownItFootnote from "markdown-it-footnote";
+import markdownItTaskLists from "markdown-it-task-lists";
+import markdownItEmoji from "markdown-it-emoji";
+import markdownItContainer from "markdown-it-container";
 
 type RenderEnv = {
   webview?: vscode.Webview;
@@ -17,6 +24,94 @@ const md = new MarkdownIt({
   linkify: true,
   typographer: true
 });
+
+const maxHighlightChars = 50_000;
+md.options.highlight = (code: string, lang: string): string => {
+  const language = (lang ?? "").trim().toLowerCase();
+  if (!language || language === "mermaid") {
+    return "";
+  }
+  if (code.length > maxHighlightChars) {
+    return "";
+  }
+  if (!hljs.getLanguage(language)) {
+    return "";
+  }
+  try {
+    return hljs.highlight(code, { language, ignoreIllegals: true }).value;
+  } catch {
+    return "";
+  }
+};
+
+md.use(texmath, {
+  engine: katex,
+  delimiters: "dollars",
+  katexOptions: {
+    throwOnError: false,
+    errorColor: "#cc0000"
+  }
+});
+md.use(markdownItFootnote);
+md.use(markdownItEmoji);
+md.use(markdownItTaskLists, { enabled: false });
+
+const admonitionTypes = ["note", "tip", "warning", "important", "danger"] as const;
+type AdmonitionType = (typeof admonitionTypes)[number];
+
+function defaultAdmonitionTitle(type: AdmonitionType): string {
+  switch (type) {
+    case "note":
+      return "NOTE";
+    case "tip":
+      return "TIP";
+    case "warning":
+      return "WARNING";
+    case "important":
+      return "IMPORTANT";
+    case "danger":
+      return "DANGER";
+    default:
+      return "NOTE";
+  }
+}
+
+function getLineAttr(map?: [number, number] | null): string {
+  const startLine = map?.[0];
+  if (typeof startLine === "number" && Number.isFinite(startLine) && startLine >= 0) {
+    return ` data-md-line="${startLine + 1}"`;
+  }
+  return "";
+}
+
+function registerAdmonition(type: AdmonitionType): void {
+  const validateRe = new RegExp(`^${type}(\\s+.*)?$`, "i");
+  const titleRe = new RegExp(`^${type}\\s*(.*)$`, "i");
+
+  md.use(markdownItContainer, type, {
+    validate(params: string): boolean {
+      return validateRe.test((params ?? "").trim());
+    },
+    render(tokens: any[], idx: number): string {
+      const token = tokens[idx] as unknown as { nesting: number; info?: string; map?: [number, number] | null };
+      if (token.nesting !== 1) {
+        return "</div>\n";
+      }
+
+      const info = (token.info ?? "").trim();
+      const m = info.match(titleRe);
+      const rawTitle = (m?.[1] ?? "").trim();
+      const titleText = rawTitle || defaultAdmonitionTitle(type);
+      const titleHtml = `<p class="admonition-title">${md.utils.escapeHtml(titleText)}</p>\n`;
+
+      return `<div class="admonition admonition-${type}"${getLineAttr(token.map)}>\n${titleHtml}`;
+    }
+  });
+}
+
+for (const type of admonitionTypes) {
+  registerAdmonition(type);
+}
 
 function applySourceLineAttr(token: { map?: [number, number] | null; attrSet: (name: string, value: string) => void }): void {
   const startLine = token.map?.[0];
@@ -89,6 +184,35 @@ function encodeBase64Utf8(text: string): string {
   }
 }
 
+function ensureHljsClassOnCode(html: string): string {
+  const codeAt = html.indexOf("<code");
+  if (codeAt < 0) {
+    return html;
+  }
+
+  const tagEnd = html.indexOf(">", codeAt);
+  if (tagEnd < 0) {
+    return html;
+  }
+
+  const classAt = html.indexOf('class="', codeAt);
+  if (classAt >= 0 && classAt < tagEnd) {
+    const valueStart = classAt + 'class="'.length;
+    const valueEnd = html.indexOf('"', valueStart);
+    if (valueEnd > valueStart && valueEnd < tagEnd) {
+      const classes = html.slice(valueStart, valueEnd);
+      if (/\bhljs\b/.test(classes)) {
+        return html;
+      }
+      return `${html.slice(0, valueStart)}hljs ${html.slice(valueStart)}`;
+    }
+    return html;
+  }
+
+  const insertAt = codeAt + "<code".length;
+  return `${html.slice(0, insertAt)} class="hljs"${html.slice(insertAt)}`;
+}
+
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx] as unknown as { map?: [number, number] | null; info?: string; content?: string };
   const startLine = token.map?.[0];
@@ -106,7 +230,8 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     return `<pre class="mermaid"${lineAttr}${dataAttr}>${escaped}</pre>`;
   }
 
-  const html = defaultFenceRule(tokens, idx, options, env, self);
+  let html = defaultFenceRule(tokens, idx, options, env, self);
+  html = ensureHljsClassOnCode(html);
   if (typeof startLine !== "number" || !Number.isFinite(startLine) || startLine < 0) {
     return html;
   }

@@ -6,12 +6,17 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-02-05
+
 ### Added
 - 预览支持 Mermaid 图表：` ```mermaid ` 围栏代码块在 Preview/Split 中渲染为 SVG（本地脚本渲染，不依赖 CDN）。
 - 预览代码块支持一键复制：在普通代码块右上角显示 `Copy` 按钮，点击复制到剪贴板并给出轻量反馈。
+- 预览渲染增强：数学公式（KaTeX，支持 `$...$` / `$$...$$`）、脚注/任务列表/emoji/admonition 容器块。
+- 预览代码块语法高亮：基于 `highlight.js` 渲染（随 VS Code 主题明暗切换）。
 
 ### Changed
 - Split 模式滚动同步升级为基于段落/标题锚点（`data-md-line`）的映射，减少长文档中的漂移与跳动。
+- Webview CSP 增加 `font-src ${webview.cspSource}`，用于 KaTeX 字体本地加载（不允许远程字体）。
 
 ## [1.0.0] - 2026-02-05
 

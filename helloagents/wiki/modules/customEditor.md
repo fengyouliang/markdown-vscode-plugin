@@ -41,11 +41,19 @@ Extension → Webview：
 - `script-src` 仅允许 nonce
 - `style-src` 允许 inline（轻量 UI）
 - `img-src` 允许 `https:` / `data:` 与 `webview.cspSource`
+- `font-src` 允许 `webview.cspSource`（用于 KaTeX 字体本地加载）
 
 ### Preview Rendering
 - 渲染引擎：`markdown-it`
 - 安全默认：`html: false`
 - 本地相对路径图片（首版）：仅在 `file` scheme 下解析为 `webview.asWebviewUri`
+- 渲染增强（常用插件）：
+  - 数学公式（KaTeX）：`markdown-it-texmath` + `katex`（支持 `$...$` / `$$...$$`）
+  - 代码高亮：`highlight.js`（Extension Host 侧渲染 token HTML，Webview 侧随主题切换 CSS）
+  - 脚注：`markdown-it-footnote`
+  - 任务列表：`markdown-it-task-lists`（checkbox 默认只读）
+  - emoji：`markdown-it-emoji`
+  - admonition 容器块：`markdown-it-container`（`::: note|tip|warning|important|danger`）
 - Code Block Copy（代码块复制）：
   - Webview：对普通代码块（`<pre><code>`，排除 Mermaid 占位节点）在右上角注入 `Copy` 按钮
   - 交互：点击按钮后通过 `copyCode` 消息将代码文本发送到扩展侧写入剪贴板，并在按钮上短暂显示 `Copied` 反馈

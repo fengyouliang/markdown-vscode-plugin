@@ -20,10 +20,21 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
     vscode.Uri.joinPath(extensionUri, "node_modules", "mermaid", "dist", "mermaid.min.js")
   );
 
+  const katexCssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "node_modules", "katex", "dist", "katex.min.css"));
+
+  const hljsLightCssUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "node_modules", "highlight.js", "styles", "github.min.css")
+  );
+  const hljsDarkCssUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "node_modules", "highlight.js", "styles", "github-dark.min.css")
+  );
+
   const csp = [
     "default-src 'none'",
     // 图片：允许 webview 资源 + https + data（远程图片/徽章常见）
     `img-src ${webview.cspSource} https: data:`,
+    // 字体：KaTeX 需要加载扩展包内字体文件（不允许远程字体）
+    `font-src ${webview.cspSource}`,
     // 样式：允许内联（用于轻量 UI），不引入外部资源
     `style-src ${webview.cspSource} 'unsafe-inline'`,
     // 脚本：仅允许带 nonce 的脚本（含本地脚本 src + 内联脚本）
@@ -37,6 +48,9 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Markdown</title>
+    <link rel="stylesheet" href="${katexCssUri}" />
+    <link id="hljsThemeLight" rel="stylesheet" href="${hljsLightCssUri}" />
+    <link id="hljsThemeDark" rel="stylesheet" href="${hljsDarkCssUri}" disabled />
     <style>
       :root {
         --toolbar-height: 34px;
@@ -148,6 +162,11 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
         border-radius: 6px;
         background: var(--vscode-textCodeBlock-background);
       }
+      /* highlight.js themes may set background on .hljs; keep code block background consistent with VS Code */
+      .preview pre > code.hljs {
+        background: transparent;
+        color: inherit;
+      }
       .preview pre > button.code-copy-btn {
         position: absolute;
         top: 6px;
@@ -193,6 +212,73 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
         text-decoration: underline;
       }
 
+      /* KaTeX */
+      .preview .katex-display {
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0.2em 0;
+      }
+
+      /* Footnotes */
+      .preview .footnotes {
+        margin-top: 18px;
+        padding-top: 10px;
+        border-top: 1px solid var(--vscode-editorWidget-border);
+        font-size: 0.95em;
+      }
+      .preview .footnotes :is(ol, ul) {
+        padding-left: 18px;
+      }
+      .preview .footnote-ref {
+        vertical-align: super;
+        font-size: 0.8em;
+      }
+      .preview a.footnote-backref {
+        text-decoration: none;
+        margin-left: 6px;
+      }
+
+      /* Task lists */
+      .preview li.task-list-item {
+        list-style-type: none;
+      }
+      .preview input.task-list-item-checkbox {
+        margin-right: 0.45em;
+        transform: translateY(1px);
+      }
+
+      /* Admonitions */
+      .preview .admonition {
+        margin: 12px 0;
+        padding: 10px 12px;
+        border: 1px solid var(--vscode-editorWidget-border);
+        border-left-width: 4px;
+        border-radius: 6px;
+        background: var(--vscode-editorWidget-background);
+      }
+      .preview .admonition > :first-child {
+        margin-top: 0;
+      }
+      .preview .admonition > :last-child {
+        margin-bottom: 0;
+      }
+      .preview .admonition-title {
+        margin: 0 0 8px;
+        font-weight: 600;
+        opacity: 0.95;
+      }
+      .preview .admonition-note,
+      .preview .admonition-tip {
+        border-left-color: var(--vscode-editorInfo-foreground, #3794ff);
+      }
+      .preview .admonition-warning,
+      .preview .admonition-important {
+        border-left-color: var(--vscode-editorWarning-foreground, #cca700);
+      }
+      .preview .admonition-danger {
+        border-left-color: var(--vscode-editorError-foreground, #f14c4c);
+      }
+
       body[data-mode="editor"] #previewPane { display: none; }
       body[data-mode="preview"] #editorPane { display: none; }
     </style>
@@ -228,6 +314,8 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
         const previewEl = /** @type {HTMLDivElement} */ (document.getElementById("previewPane"));
         const reopenWithBtn = /** @type {HTMLButtonElement} */ (document.getElementById("reopenWith"));
         const modeButtons = Array.from(document.querySelectorAll("button[data-mode]"));
+        const hljsThemeLightLink = document.getElementById("hljsThemeLight");
+        const hljsThemeDarkLink = document.getElementById("hljsThemeDark");
 
         // Split 模式滚动同步：基于渲染锚点（data-md-line）的“按段落/标题”联动
         let syncingScroll = false;
@@ -359,6 +447,24 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
             return "dark";
           }
           return "default";
+        }
+
+        function applyHighlightTheme() {
+          const isDark = getMermaidTheme() === "dark";
+          if (hljsThemeLightLink instanceof HTMLLinkElement) {
+            hljsThemeLightLink.disabled = isDark;
+          }
+          if (hljsThemeDarkLink instanceof HTMLLinkElement) {
+            hljsThemeDarkLink.disabled = !isDark;
+          }
+        }
+
+        function watchThemeClass() {
+          applyHighlightTheme();
+          const observer = new MutationObserver(() => {
+            applyHighlightTheme();
+          });
+          observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
         }
 
         function prepareMermaidBlocks() {
@@ -801,6 +907,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
           }
         });
 
+        watchThemeClass();
         vscode.postMessage({ type: "ready" });
       })();
     </script>

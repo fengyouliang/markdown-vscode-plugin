@@ -11,6 +11,10 @@
 - 视图选择记忆：同一工作区内“记住上次选择”，重启 VS Code 仍生效
 - 预览渲染：基于 `markdown-it` 本地渲染（默认禁用原始 HTML，降低注入风险）
 - Mermaid：支持 ` ```mermaid ` 围栏代码块渲染为图表（本地脚本渲染，不依赖 CDN）
+- 渲染增强：
+  - 数学公式（KaTeX，支持 `$...$` / `$$...$$`）
+  - 代码高亮（highlight.js，随 VS Code 主题明暗切换）
+  - 脚注 / 任务列表 / emoji / admonition 容器块（`::: note|tip|warning|important|danger`）
 
 ## 使用方式
 安装后直接打开任意 `.md`：
