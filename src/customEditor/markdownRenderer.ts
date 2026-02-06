@@ -18,6 +18,8 @@ type RenderEnv = {
   documentUri?: vscode.Uri;
 };
 
+type TaskListState = "todo" | "done" | "skipped" | "unknown";
+
 const md = new MarkdownIt({
   // 安全默认值：不允许原始 HTML，避免注入风险
   html: false,
@@ -55,6 +57,149 @@ md.use(texmath, {
 md.use(markdownItFootnote);
 md.use(markdownItEmoji);
 md.use(markdownItTaskLists, { enabled: false });
+
+const leadingTaskMarkerRe = /^\[([ xXvV√\-\?])\][\t \u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+/;
+
+function mapTaskMarkerToState(marker: string): { normalizedMarker: " " | "x"; state: TaskListState } | undefined {
+  switch (marker) {
+    case " ":
+      return { normalizedMarker: " ", state: "todo" };
+    case "x":
+    case "X":
+    case "√":
+    case "v":
+    case "V":
+      return { normalizedMarker: "x", state: "done" };
+    case "-":
+      return { normalizedMarker: " ", state: "skipped" };
+    case "?":
+      return { normalizedMarker: " ", state: "unknown" };
+    default:
+      return undefined;
+  }
+}
+
+function addClass(token: any, cls: string): void {
+  if (!token || typeof token.attrIndex !== "function" || typeof token.attrPush !== "function") {
+    return;
+  }
+  const index = token.attrIndex("class");
+  if (index < 0) {
+    token.attrPush(["class", cls]);
+    return;
+  }
+  const attrs = token.attrs ?? [];
+  const current = String(attrs[index]?.[1] ?? "");
+  const parts = current.split(/\s+/g).filter(Boolean);
+  if (!parts.includes(cls)) {
+    parts.push(cls);
+    attrs[index][1] = parts.join(" ");
+    token.attrs = attrs;
+  }
+}
+
+function withTaskState(token: any, state: TaskListState, rawMarker: string): void {
+  token.meta = { ...(token.meta ?? {}), helloagentsTaskState: state, helloagentsRawTaskMarker: rawMarker };
+}
+
+function getTaskState(token: any): TaskListState | undefined {
+  const raw = token?.meta?.helloagentsTaskState;
+  return raw === "todo" || raw === "done" || raw === "skipped" || raw === "unknown" ? raw : undefined;
+}
+
+// Task list 兼容层：
+// - markdown-it-task-lists 仅识别 `[ ] ` / `[x] ` / `[X] `（且要求是一个 ASCII 空格）
+// - HelloAGENTS 的 task.md 使用 `[√]` / `[-]` / `[?]` 等标记
+// 因此在 core 阶段把“行首标记”归一化，再由 task-lists 插件生成 checkbox。
+md.core.ruler.after("inline", "helloagents-task-marker-normalize", (state: any) => {
+  const tokens = state.tokens as any[];
+  for (let i = 2; i < tokens.length; i++) {
+    const inline = tokens[i];
+    const paragraphOpen = tokens[i - 1];
+    const listItemOpen = tokens[i - 2];
+    if (!inline || inline.type !== "inline") {
+      continue;
+    }
+    if (!paragraphOpen || paragraphOpen.type !== "paragraph_open") {
+      continue;
+    }
+    if (!listItemOpen || listItemOpen.type !== "list_item_open") {
+      continue;
+    }
+
+    const rawContent = String(inline.content ?? "");
+    const m = rawContent.match(leadingTaskMarkerRe);
+    if (!m) {
+      continue;
+    }
+    const rawMarker = m[1];
+    const mapped = mapTaskMarkerToState(rawMarker);
+    if (!mapped) {
+      continue;
+    }
+
+    const rest = rawContent.slice(m[0].length);
+    const normalized = `[${mapped.normalizedMarker}] ${rest}`;
+    if (normalized !== rawContent) {
+      inline.content = normalized;
+    }
+    // 同步归一化到首个 text child，避免由于 NBSP/多空格导致的“正文起始缩进异常”
+    const firstChild = inline.children?.[0];
+    if (firstChild && firstChild.type === "text" && typeof firstChild.content === "string") {
+      const childRaw = firstChild.content;
+      const childMatch = childRaw.match(leadingTaskMarkerRe);
+      if (childMatch) {
+        const childRest = childRaw.slice(childMatch[0].length);
+        const nextChild = `[${mapped.normalizedMarker}] ${childRest}`;
+        if (nextChild !== childRaw) {
+          firstChild.content = nextChild;
+        }
+      }
+    }
+
+    // 记录状态，供后续在 HTML 中做样式/交互补丁（如 indeterminate）
+    withTaskState(listItemOpen, mapped.state, rawMarker);
+  }
+});
+
+// 在 task-lists 插件运行完成后，补充 class / data-attr，方便 Webview 做进一步渲染（如 indeterminate）
+md.core.ruler.push("helloagents-task-state-annotate", (state: any) => {
+  const tokens = state.tokens as any[];
+  for (let i = 2; i < tokens.length; i++) {
+    const inline = tokens[i];
+    const paragraphOpen = tokens[i - 1];
+    const listItemOpen = tokens[i - 2];
+    if (!inline || inline.type !== "inline") {
+      continue;
+    }
+    if (!paragraphOpen || paragraphOpen.type !== "paragraph_open") {
+      continue;
+    }
+    if (!listItemOpen || listItemOpen.type !== "list_item_open") {
+      continue;
+    }
+
+    const taskState = getTaskState(listItemOpen);
+    if (!taskState) {
+      continue;
+    }
+
+    addClass(listItemOpen, `task-state-${taskState}`);
+
+    const checkbox = inline.children?.[0];
+    if (!checkbox || checkbox.type !== "html_inline" || typeof checkbox.content !== "string") {
+      continue;
+    }
+    if (!checkbox.content.includes("task-list-item-checkbox")) {
+      continue;
+    }
+    if (checkbox.content.includes("data-task-state=")) {
+      continue;
+    }
+
+    checkbox.content = checkbox.content.replace("<input ", `<input data-task-state="${taskState}" `);
+  }
+});
 
 const admonitionTypes = ["note", "tip", "warning", "important", "danger"] as const;
 type AdmonitionType = (typeof admonitionTypes)[number];

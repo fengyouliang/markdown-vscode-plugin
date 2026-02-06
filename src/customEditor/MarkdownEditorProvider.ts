@@ -27,7 +27,9 @@ function asViewMode(value: unknown): ViewMode {
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly applyingEdits = new Set<string>();
   private readonly openPanels = new Set<vscode.WebviewPanel>();
-  private readonly renderCache = new Map<string, { text: string; html: string }>();
+  private readonly renderCache = new Map<string, { version: number; html: string }>();
+  private readonly postedVersion = new Map<string, number>();
+  private readonly readyPanels = new WeakSet<vscode.WebviewPanel>();
   private static readonly MAX_TEXT_LENGTH = 5_000_000;
 
   public constructor(private readonly context: vscode.ExtensionContext) {}
@@ -48,6 +50,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
     const webview = webviewPanel.webview;
+    const key = document.uri.toString();
+    this.readyPanels.delete(webviewPanel);
     webview.options = {
       enableScripts: true,
       localResourceRoots: this.getLocalResourceRoots(document)
@@ -57,31 +61,93 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.title = path.basename(document.uri.fsPath || document.uri.path || "Markdown");
     this.openPanels.add(webviewPanel);
 
+    let disposed = false;
+    let dirtyWhileHidden = false;
+    let updateTimer: NodeJS.Timeout | undefined;
+    let pendingUpdateSeq = 0;
+    let handledUpdateSeq = 0;
+    let updateRunning = false;
+
     const postUpdate = async (): Promise<void> => {
+      if (disposed) {
+        return;
+      }
+      if (!this.readyPanels.has(webviewPanel)) {
+        return;
+      }
+      if (!webviewPanel.visible) {
+        dirtyWhileHidden = true;
+        return;
+      }
+      const version = document.version;
+      if (this.postedVersion.get(key) === version) {
+        return;
+      }
+      const text = document.getText();
       const msg: ExtensionToWebviewMessage = {
         type: "update",
-        text: document.getText(),
-        html: this.render(document, webview),
-        version: document.version
+        text,
+        html: this.render(document, version, text, webview),
+        version
       };
       await webview.postMessage(msg);
+      this.postedVersion.set(key, version);
+    };
+
+    const runUpdates = async (): Promise<void> => {
+      if (disposed || updateRunning) {
+        return;
+      }
+      updateRunning = true;
+      try {
+        while (!disposed && handledUpdateSeq < pendingUpdateSeq) {
+          handledUpdateSeq = pendingUpdateSeq;
+          await postUpdate();
+        }
+      } finally {
+        updateRunning = false;
+        if (!disposed && handledUpdateSeq < pendingUpdateSeq) {
+          void runUpdates();
+        }
+      }
+    };
+
+    const scheduleUpdate = (delayMs: number): void => {
+      pendingUpdateSeq++;
+      if (disposed) {
+        return;
+      }
+      if (updateRunning) {
+        return;
+      }
+      if (updateTimer) {
+        clearTimeout(updateTimer);
+      }
+      updateTimer = setTimeout(() => {
+        updateTimer = undefined;
+        void runUpdates();
+      }, delayMs);
     };
 
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(async (e) => {
       if (e.document.uri.toString() !== document.uri.toString()) {
         return;
       }
-      const key = document.uri.toString();
       if (this.applyingEdits.has(key)) {
         return;
       }
-      await postUpdate();
+      scheduleUpdate(120);
     });
 
     const changeViewStateSubscription = webviewPanel.onDidChangeViewState(async () => {
       // 当 tab 重新可见时，确保预览与文本与文档一致
       if (webviewPanel.visible) {
-        await postUpdate();
+        if (dirtyWhileHidden) {
+          dirtyWhileHidden = false;
+          scheduleUpdate(0);
+          return;
+        }
+        scheduleUpdate(0);
       }
     });
 
@@ -93,9 +159,17 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     });
 
     webviewPanel.onDidDispose(() => {
+      disposed = true;
       this.openPanels.delete(webviewPanel);
+      this.readyPanels.delete(webviewPanel);
+      this.renderCache.delete(key);
+      this.postedVersion.delete(key);
       changeDocumentSubscription.dispose();
       changeViewStateSubscription.dispose();
+      if (updateTimer) {
+        clearTimeout(updateTimer);
+        updateTimer = undefined;
+      }
     });
 
     // init 由 webview 主动发起 ready 后再发送，避免消息在 webview 尚未完成加载时丢失
@@ -121,15 +195,14 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     return roots;
   }
 
-  private render(document: vscode.TextDocument, webview: vscode.Webview): string {
+  private render(document: vscode.TextDocument, version: number, text: string, webview: vscode.Webview): string {
     const key = document.uri.toString();
-    const text = document.getText();
     const cached = this.renderCache.get(key);
-    if (cached && cached.text === text) {
+    if (cached && cached.version === version) {
       return cached.html;
     }
     const html = renderMarkdownToHtml(text, { webview, documentUri: document.uri });
-    this.renderCache.set(key, { text, html });
+    this.renderCache.set(key, { version, html });
     return html;
   }
 
@@ -137,14 +210,58 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     switch (msg.type) {
       case "ready": {
         const viewMode = asViewMode(this.context.workspaceState.get(WORKSPACE_VIEW_MODE_STATE_KEY));
+        const key = document.uri.toString();
+        const version = document.version;
+        const text = document.getText();
+        const cached = this.renderCache.get(key);
+
+        // Fast init：先尽快把文本回填到 Webview，避免“首屏空白”；预览 HTML 在后台补发 update
+        if (!cached || cached.version !== version) {
+          const init: ExtensionToWebviewMessage = {
+            type: "init",
+            text,
+            html: `<p style="opacity:0.7">预览渲染中…</p>`,
+            version: 0,
+            viewMode
+          };
+          await webviewPanel.webview.postMessage(init);
+          this.readyPanels.add(webviewPanel);
+          this.postedVersion.set(key, 0);
+
+          setTimeout(() => {
+            void (async () => {
+              if (!this.readyPanels.has(webviewPanel)) {
+                return;
+              }
+              const snapshotVersion = document.version;
+              const snapshotText = document.getText();
+              const html = this.render(document, snapshotVersion, snapshotText, webviewPanel.webview);
+              const update: ExtensionToWebviewMessage = {
+                type: "update",
+                text: snapshotText,
+                html,
+                version: snapshotVersion
+              };
+              await webviewPanel.webview.postMessage(update);
+              this.postedVersion.set(key, snapshotVersion);
+            })().catch(() => {
+              // ignore
+            });
+          }, 0);
+          return;
+        }
+
+        // Cache hit：直接用缓存 HTML 初始化，缩短首屏等待
         const init: ExtensionToWebviewMessage = {
           type: "init",
-          text: document.getText(),
-          html: this.render(document, webviewPanel.webview),
-          version: document.version,
+          text,
+          html: cached.html,
+          version,
           viewMode
         };
         await webviewPanel.webview.postMessage(init);
+        this.readyPanels.add(webviewPanel);
+        this.postedVersion.set(key, version);
         return;
       }
       case "edit": {
@@ -156,15 +273,22 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           await webviewPanel.webview.postMessage(err);
           return;
         }
-        await this.applyEdit(document, msg.text);
-        // 编辑来自 webview：只需要更新预览（文本已在 webview 本地）
+        const appliedVersion = await this.applyEdit(document, msg.text);
+        if (appliedVersion === undefined) {
+          return;
+        }
+        // 编辑来自 webview：通常可以直接复用 msg.text，避免额外 getText；若期间版本发生变化则回退到文档快照
+        const currentVersion = document.version;
+        const version = currentVersion === appliedVersion ? appliedVersion : currentVersion;
+        const text = currentVersion === appliedVersion ? msg.text : document.getText();
         const update: ExtensionToWebviewMessage = {
           type: "update",
-          text: document.getText(),
-          html: this.render(document, webviewPanel.webview),
-          version: document.version
+          text,
+          html: this.render(document, version, text, webviewPanel.webview),
+          version
         };
         await webviewPanel.webview.postMessage(update);
+        this.postedVersion.set(document.uri.toString(), version);
         return;
       }
       case "setViewMode": {
@@ -208,21 +332,54 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  private async applyEdit(document: vscode.TextDocument, nextText: string): Promise<void> {
+  private async applyEdit(document: vscode.TextDocument, nextText: string): Promise<number | undefined> {
     const currentText = document.getText();
     if (nextText === currentText) {
-      return;
+      return undefined;
     }
 
     const key = document.uri.toString();
     this.applyingEdits.add(key);
     try {
       const edit = new vscode.WorkspaceEdit();
-      const fullRange = new vscode.Range(0, 0, document.lineCount, 0);
-      edit.replace(document.uri, fullRange, nextText);
-      await vscode.workspace.applyEdit(edit);
+      const replacement = this.computeMinimalReplacement(document, currentText, nextText);
+      edit.replace(document.uri, replacement.range, replacement.text);
+      const applied = await vscode.workspace.applyEdit(edit);
+      if (!applied) {
+        return undefined;
+      }
+      return document.version;
     } finally {
       this.applyingEdits.delete(key);
     }
+  }
+
+  private computeMinimalReplacement(
+    document: vscode.TextDocument,
+    currentText: string,
+    nextText: string
+  ): { range: vscode.Range; text: string } {
+    let start = 0;
+    const currentLen = currentText.length;
+    const nextLen = nextText.length;
+    const minLen = Math.min(currentLen, nextLen);
+    while (start < minLen && currentText.charCodeAt(start) === nextText.charCodeAt(start)) {
+      start++;
+    }
+
+    let endCurrent = currentLen;
+    let endNext = nextLen;
+    while (
+      endCurrent > start &&
+      endNext > start &&
+      currentText.charCodeAt(endCurrent - 1) === nextText.charCodeAt(endNext - 1)
+    ) {
+      endCurrent--;
+      endNext--;
+    }
+
+    const range = new vscode.Range(document.positionAt(start), document.positionAt(endCurrent));
+    const text = nextText.slice(start, endNext);
+    return { range, text };
   }
 }

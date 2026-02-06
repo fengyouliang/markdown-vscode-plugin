@@ -14,7 +14,7 @@
 - 渲染增强：
   - 数学公式（KaTeX，支持 `$...$` / `$$...$$`）
   - 代码高亮（highlight.js，随 VS Code 主题明暗切换）
-  - 脚注 / 任务列表 / emoji / admonition 容器块（`::: note|tip|warning|important|danger`）
+  - 脚注 / 任务列表（支持 `[ ]` / `[x]` / `[√]` / `[v]` / `[-]` / `[?]`）/ emoji / admonition 容器块（`::: note|tip|warning|important|danger`）
 
 ## 使用方式
 安装后直接打开任意 `.md`：

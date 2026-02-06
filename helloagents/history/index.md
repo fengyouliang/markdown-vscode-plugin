@@ -24,6 +24,7 @@
 | 202602051748 | mermaid_support | Feature | ✅Completed | [202602051748_mermaid_support](2026-02/202602051748_mermaid_support/) |
 | 202602052244 | code_copy_button | Feature | ✅Completed | [202602052244_code_copy_button](2026-02/202602052244_code_copy_button/) |
 | 202602052332 | markdown_render_enhance | Feature | ✅Completed | [202602052332_markdown_render_enhance](2026-02/202602052332_markdown_render_enhance/) |
+| 202602061613 | md_first_open_fast_init | Fix | ✅Completed | [202602061613_md_first_open_fast_init](2026-02/202602061613_md_first_open_fast_init/) |
 
 ---
 
@@ -50,3 +51,4 @@
 - [202602051748_mermaid_support](2026-02/202602051748_mermaid_support/) - Mermaid 图表渲染支持（` ```mermaid ` fenced code）
 - [202602052244_code_copy_button](2026-02/202602052244_code_copy_button/) - 预览代码块右上角 Copy 按钮：一键复制到剪贴板
 - [202602052332_markdown_render_enhance](2026-02/202602052332_markdown_render_enhance/) - 预览渲染增强：KaTeX 数学公式 + 代码高亮 + 常用插件（脚注/任务列表/emoji/admonition）
+- [202602061613_md_first_open_fast_init](2026-02/202602061613_md_first_open_fast_init/) - 首次打开首屏加速：Fast init（占位预览）+ Mermaid 懒加载

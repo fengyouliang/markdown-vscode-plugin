@@ -51,7 +51,7 @@ Extension → Webview：
   - 数学公式（KaTeX）：`markdown-it-texmath` + `katex`（支持 `$...$` / `$$...$$`）
   - 代码高亮：`highlight.js`（Extension Host 侧渲染 token HTML，Webview 侧随主题切换 CSS）
   - 脚注：`markdown-it-footnote`
-  - 任务列表：`markdown-it-task-lists`（checkbox 默认只读）
+  - 任务列表：`markdown-it-task-lists`（支持 `[ ]` / `[x]` / `[√]` / `[v]` / `[-]` / `[?]`；checkbox 默认只读；`[-]` / `[?]` 在预览中渲染为 indeterminate）
   - emoji：`markdown-it-emoji`
   - admonition 容器块：`markdown-it-container`（`::: note|tip|warning|important|danger`）
 - Code Block Copy（代码块复制）：
@@ -59,8 +59,9 @@ Extension → Webview：
   - 交互：点击按钮后通过 `copyCode` 消息将代码文本发送到扩展侧写入剪贴板，并在按钮上短暂显示 `Copied` 反馈
 - Mermaid 图表（` ```mermaid `）：
   - Extension Host：将 mermaid fence 渲染为占位节点（`<pre class="mermaid" data-mermaid="...">`），并保留 `data-md-line` 作为滚动同步锚点
-  - Webview：加载扩展包内本地 Mermaid 脚本并在 `init/update` 后执行渲染，渲染完成后刷新锚点 offsets
+  - Webview：仅当预览中存在 Mermaid 占位节点时，按需懒加载扩展包内本地 Mermaid 脚本并在 `init/update` 后执行渲染；渲染完成后刷新锚点 offsets
   - 安全：Mermaid 以 `securityLevel: "strict"` 初始化（不依赖 CDN）
+- 性能（首屏）：Webview `ready` 后先快速回填文本与占位预览，真实预览 HTML 渲染完成后再推送 `update`，降低首次打开的“首屏空白”时间
 
 ### Split Scroll Sync
 - 同步目标：Split 下“编辑区 ↔ 预览区”双向同步滚动

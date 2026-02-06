@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### Changed
+- 优化首次打开首屏：Webview `ready` 后先快速回填文本并显示占位预览，真实预览 HTML 渲染完成后再推送 `update`，降低首屏空白时间。
+- Mermaid 脚本改为按需懒加载：仅在预览存在 Mermaid 占位节点时加载并渲染，减少无 Mermaid 文档的首屏资源开销。
+- 编辑回写优化：Webview → Extension 回写改为最小差异替换，降低大文件编辑时的 `WorkspaceEdit` 开销。
+
 ## [1.1.0] - 2026-02-05
 
 ### Added

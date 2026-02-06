@@ -246,6 +246,10 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
         margin-right: 0.45em;
         transform: translateY(1px);
       }
+      .preview li.task-state-skipped,
+      .preview li.task-state-unknown {
+        opacity: 0.85;
+      }
 
       /* Admonitions */
       .preview .admonition {
@@ -292,17 +296,18 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
       <button class="btn" id="reopenWith" type="button" title="Reopen With...">⋯</button>
     </div>
 
-    <div class="root">
-      <div class="pane" id="editorPane">
-        <textarea id="editor" spellcheck="false"></textarea>
-      </div>
-      <div class="pane preview" id="previewPane"></div>
-    </div>
+	    <div class="root">
+	      <div class="pane" id="editorPane">
+	        <textarea id="editor" spellcheck="false" placeholder="加载中…"></textarea>
+	      </div>
+	      <div class="pane preview" id="previewPane"><p style="opacity:0.7">加载中…</p></div>
+	    </div>
 
-    <script nonce="${nonce}" src="${mermaidScriptUri}"></script>
-    <script nonce="${nonce}">
-      (function () {
-        const vscode = acquireVsCodeApi();
+	    <script nonce="${nonce}">
+	      (function () {
+	        const vscode = acquireVsCodeApi();
+	        const mermaidScriptSrc = "${mermaidScriptUri}";
+	        const cspNonce = "${nonce}";
 
         /** @type {"editor" | "split" | "preview"} */
         let currentMode = "split";
@@ -330,8 +335,9 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
         let anchorOffsetsDirty = true;
         let recomputeOffsetsRaf = 0;
 
-        let mermaidRenderRaf = 0;
-        let mermaidRenderSeq = 0;
+	        let mermaidRenderRaf = 0;
+	        let mermaidRenderSeq = 0;
+	        let mermaidLoadPromise = undefined;
 
         const CODE_COPY_LABEL = "Copy";
         const CODE_COPIED_LABEL = "Copied";
@@ -369,6 +375,23 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
             btn.classList.remove("copied");
             btn.textContent = CODE_COPY_LABEL;
           }, 1200);
+        }
+
+        function applyTaskListStates() {
+          const inputs = Array.from(previewEl.querySelectorAll('input.task-list-item-checkbox[data-task-state]'));
+          for (const el of inputs) {
+            if (!(el instanceof HTMLInputElement)) {
+              continue;
+            }
+            const state = el.getAttribute("data-task-state") || "";
+            if (state === "skipped" || state === "unknown") {
+              // HTML checkbox 的 indeterminate 需要通过 DOM 属性设置（不是 attribute）
+              el.checked = false;
+              el.indeterminate = true;
+            } else {
+              el.indeterminate = false;
+            }
+          }
         }
 
         function handlePreviewClick(e) {
@@ -467,9 +490,9 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
           observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
         }
 
-        function prepareMermaidBlocks() {
-          const blocks = Array.from(previewEl.querySelectorAll("pre.mermaid[data-mermaid]"));
-          for (const el of blocks) {
+	        function prepareMermaidBlocks() {
+	          const blocks = Array.from(previewEl.querySelectorAll("pre.mermaid[data-mermaid]"));
+	          for (const el of blocks) {
             if (!(el instanceof HTMLElement)) {
               continue;
             }
@@ -483,23 +506,46 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
               el.textContent = src;
             }
           }
-          return blocks;
-        }
+	          return blocks;
+	        }
 
-        async function renderMermaidIfNeeded() {
-          const mermaidApi = /** @type {any} */ (window.mermaid);
-          if (!mermaidApi) {
-            return;
-          }
+	        function ensureMermaidLoaded() {
+	          const existing = /** @type {any} */ (window.mermaid);
+	          if (existing) {
+	            return Promise.resolve(existing);
+	          }
+	          if (mermaidLoadPromise) {
+	            return mermaidLoadPromise;
+	          }
+	          mermaidLoadPromise = new Promise((resolve) => {
+	            const script = document.createElement("script");
+	            script.src = mermaidScriptSrc;
+	            script.async = true;
+	            try {
+	              script.setAttribute("nonce", cspNonce);
+	            } catch {
+	              // ignore
+	            }
+	            script.onload = () => resolve(/** @type {any} */ (window.mermaid));
+	            script.onerror = () => resolve(undefined);
+	            document.head.appendChild(script);
+	          });
+	          return mermaidLoadPromise;
+	        }
 
-          const blocks = prepareMermaidBlocks();
-          if (blocks.length === 0) {
-            return;
-          }
+	        async function renderMermaidIfNeeded() {
+	          const blocks = prepareMermaidBlocks();
+	          if (blocks.length === 0) {
+	            return;
+	          }
+	          const mermaidApi = await ensureMermaidLoaded();
+	          if (!mermaidApi) {
+	            return;
+	          }
 
-          try {
-            mermaidApi.initialize({
-              startOnLoad: false,
+	          try {
+	            mermaidApi.initialize({
+	              startOnLoad: false,
               securityLevel: "strict",
               theme: getMermaidTheme()
             });
@@ -848,6 +894,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
               editorEl.value = msg.text || "";
               applyingRemote = false;
               previewEl.innerHTML = msg.html || "";
+              applyTaskListStates();
               ensureCodeCopyButtons();
               rebuildAnchors();
               scheduleRenderMermaid();
@@ -878,6 +925,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
               }
 
               previewEl.innerHTML = msg.html || "";
+              applyTaskListStates();
               ensureCodeCopyButtons();
               rebuildAnchors();
               scheduleRenderMermaid();
