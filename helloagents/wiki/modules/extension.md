@@ -20,3 +20,8 @@
 ### 回退路径
 - UI 提供触发 VS Code `Reopen With...` 的入口
 - 文档说明如何通过 `workbench.editorAssociations` 永久回退到 `Text Editor`
+
+### 本地打包 VSIX
+- 首次或依赖变更先执行：`npm ci`
+- 生成 VSIX：`npm run vsix`（输出 `md-auto-preview-<version>.vsix`）
+- VS Code 安装：命令面板执行 `Extensions: Install from VSIX...`

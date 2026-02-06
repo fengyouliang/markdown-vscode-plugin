@@ -27,10 +27,28 @@
         "displayName": "Markdown Editor (Editor / Split / Preview)",
         "selector": [
           {
-            "filenamePattern": "*.md"
+            "filenamePattern": "*.md",
+            "scheme": "file"
           },
           {
-            "filenamePattern": "*.markdown"
+            "filenamePattern": "*.md",
+            "scheme": "vscode-remote"
+          },
+          {
+            "filenamePattern": "*.md",
+            "scheme": "untitled"
+          },
+          {
+            "filenamePattern": "*.markdown",
+            "scheme": "file"
+          },
+          {
+            "filenamePattern": "*.markdown",
+            "scheme": "vscode-remote"
+          },
+          {
+            "filenamePattern": "*.markdown",
+            "scheme": "untitled"
           }
         ],
         "priority": "default"
@@ -40,7 +58,8 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "vsix": "node -e \"const { spawnSync } = require('child_process'); const version = require('./package.json').version; const out = 'md-auto-preview-' + version + '.vsix'; const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'; const args = ['--cache', './node_modules/.cache/npm', 'exec', '--yes', '--package', '@vscode/vsce', '--', 'vsce', 'package', '--allow-missing-repository', '--skip-license', '--readme-path', 'README.md', '--changelog-path', 'helloagents/CHANGELOG.md', '-o', out]; const r = spawnSync(npmCmd, args, { stdio: 'inherit' }); process.exit(typeof r.status === 'number' ? r.status : 1);\""
   },
   "dependencies": {
     "highlight.js": "^11.11.1",
