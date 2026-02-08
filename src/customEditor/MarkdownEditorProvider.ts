@@ -25,10 +25,10 @@ function asViewMode(value: unknown): ViewMode {
 }
 
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
-  private readonly applyingEdits = new Set<string>();
+  private readonly applyingEdits = new WeakSet<vscode.WebviewPanel>();
   private readonly openPanels = new Set<vscode.WebviewPanel>();
   private readonly renderCache = new Map<string, { version: number; html: string }>();
-  private readonly postedVersion = new Map<string, number>();
+  private readonly postedVersionByPanel = new WeakMap<vscode.WebviewPanel, number>();
   private readonly readyPanels = new WeakSet<vscode.WebviewPanel>();
   private static readonly MAX_TEXT_LENGTH = 5_000_000;
 
@@ -80,7 +80,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
       const version = document.version;
-      if (this.postedVersion.get(key) === version) {
+      if (this.postedVersionByPanel.get(webviewPanel) === version) {
         return;
       }
       const text = document.getText();
@@ -91,7 +91,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         version
       };
       await webview.postMessage(msg);
-      this.postedVersion.set(key, version);
+      this.postedVersionByPanel.set(webviewPanel, version);
     };
 
     const runUpdates = async (): Promise<void> => {
@@ -133,7 +133,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       if (e.document.uri.toString() !== document.uri.toString()) {
         return;
       }
-      if (this.applyingEdits.has(key)) {
+      if (this.applyingEdits.has(webviewPanel)) {
         return;
       }
       scheduleUpdate(120);
@@ -162,8 +162,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       disposed = true;
       this.openPanels.delete(webviewPanel);
       this.readyPanels.delete(webviewPanel);
+      this.applyingEdits.delete(webviewPanel);
       this.renderCache.delete(key);
-      this.postedVersion.delete(key);
+      this.postedVersionByPanel.delete(webviewPanel);
       changeDocumentSubscription.dispose();
       changeViewStateSubscription.dispose();
       if (updateTimer) {
@@ -226,7 +227,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           };
           await webviewPanel.webview.postMessage(init);
           this.readyPanels.add(webviewPanel);
-          this.postedVersion.set(key, 0);
+          this.postedVersionByPanel.set(webviewPanel, 0);
 
           setTimeout(() => {
             void (async () => {
@@ -243,7 +244,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
                 version: snapshotVersion
               };
               await webviewPanel.webview.postMessage(update);
-              this.postedVersion.set(key, snapshotVersion);
+              this.postedVersionByPanel.set(webviewPanel, snapshotVersion);
             })().catch(() => {
               // ignore
             });
@@ -261,7 +262,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         };
         await webviewPanel.webview.postMessage(init);
         this.readyPanels.add(webviewPanel);
-        this.postedVersion.set(key, version);
+        this.postedVersionByPanel.set(webviewPanel, version);
         return;
       }
       case "edit": {
@@ -273,7 +274,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           await webviewPanel.webview.postMessage(err);
           return;
         }
-        const appliedVersion = await this.applyEdit(document, msg.text);
+        const appliedVersion = await this.applyEdit(document, msg.text, webviewPanel);
         if (appliedVersion === undefined) {
           return;
         }
@@ -288,7 +289,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           version
         };
         await webviewPanel.webview.postMessage(update);
-        this.postedVersion.set(document.uri.toString(), version);
+        this.postedVersionByPanel.set(webviewPanel, version);
         return;
       }
       case "setViewMode": {
@@ -332,14 +333,17 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  private async applyEdit(document: vscode.TextDocument, nextText: string): Promise<number | undefined> {
+  private async applyEdit(
+    document: vscode.TextDocument,
+    nextText: string,
+    originPanel: vscode.WebviewPanel
+  ): Promise<number | undefined> {
     const currentText = document.getText();
     if (nextText === currentText) {
       return undefined;
     }
 
-    const key = document.uri.toString();
-    this.applyingEdits.add(key);
+    this.applyingEdits.add(originPanel);
     try {
       const edit = new vscode.WorkspaceEdit();
       const replacement = this.computeMinimalReplacement(document, currentText, nextText);
@@ -350,7 +354,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
       return document.version;
     } finally {
-      this.applyingEdits.delete(key);
+      this.applyingEdits.delete(originPanel);
     }
   }
 

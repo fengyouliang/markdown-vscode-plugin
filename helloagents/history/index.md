@@ -25,6 +25,8 @@
 | 202602052244 | code_copy_button | Feature | ✅Completed | [202602052244_code_copy_button](2026-02/202602052244_code_copy_button/) |
 | 202602052332 | markdown_render_enhance | Feature | ✅Completed | [202602052332_markdown_render_enhance](2026-02/202602052332_markdown_render_enhance/) |
 | 202602061613 | md_first_open_fast_init | Fix | ✅Completed | [202602061613_md_first_open_fast_init](2026-02/202602061613_md_first_open_fast_init/) |
+| 202602081409 | fix_scm_diff_duplicate_view | Fix | ✅Completed | [202602081409_fix_scm_diff_duplicate_view](2026-02/202602081409_fix_scm_diff_duplicate_view/) |
+| 202602081427 | disable_custom_editor_in_diff | Fix | ✅Completed | [202602081427_disable_custom_editor_in_diff](2026-02/202602081427_disable_custom_editor_in_diff/) |
 
 ---
 
@@ -52,3 +54,5 @@
 - [202602052244_code_copy_button](2026-02/202602052244_code_copy_button/) - 预览代码块右上角 Copy 按钮：一键复制到剪贴板
 - [202602052332_markdown_render_enhance](2026-02/202602052332_markdown_render_enhance/) - 预览渲染增强：KaTeX 数学公式 + 代码高亮 + 常用插件（脚注/任务列表/emoji/admonition）
 - [202602061613_md_first_open_fast_init](2026-02/202602061613_md_first_open_fast_init/) - 首次打开首屏加速：Fast init（占位预览）+ Mermaid 懒加载
+- [202602081409_fix_scm_diff_duplicate_view](2026-02/202602081409_fix_scm_diff_duplicate_view/) - 修复 Source Control / Diff 中左右视图内容一致（阶段性尝试：多实例隔离；最终方案见 202602081427）
+- [202602081427_disable_custom_editor_in_diff](2026-02/202602081427_disable_custom_editor_in_diff/) - Diff 对比场景禁用 Custom Editor（保留内置文本 Diff），普通打开自动重开为 Custom Editor

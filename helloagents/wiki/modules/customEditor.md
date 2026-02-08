@@ -7,6 +7,7 @@
 - 支持轻量编辑与保存：
   - Webview 输入 → 扩展侧 `WorkspaceEdit` 回写到 `TextDocument`
   - 支持外部变更同步（扩展侧监听 `onDidChangeTextDocument` 推送更新）
+- Source Control / Diff 对比场景默认不启用 Custom Editor（保留 VS Code 内置文本 Diff/编辑体验）
 - 预览渲染：扩展侧使用 `markdown-it` 渲染 HTML，并通过消息推送到 Webview 展示
 - 安全：严格 CSP；仅处理白名单消息；预览默认禁用原始 HTML
 

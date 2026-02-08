@@ -10,9 +10,11 @@
 - 优化首次打开首屏：Webview `ready` 后先快速回填文本并显示占位预览，真实预览 HTML 渲染完成后再推送 `update`，降低首屏空白时间。
 - Mermaid 脚本改为按需懒加载：仅在预览存在 Mermaid 占位节点时加载并渲染，减少无 Mermaid 文档的首屏资源开销。
 - 编辑回写优化：Webview → Extension 回写改为最小差异替换，降低大文件编辑时的 `WorkspaceEdit` 开销。
+- 默认打开策略调整：Custom Editor 改为 `priority: option`，由扩展在“普通打开 Markdown”时自动重开为 Custom Editor；Diff（Source Control 对比）场景不自动重开，避免影响内置文本 Diff。
 
 ### Fixed
 - 修复扩展激活失败：兼容 `markdown-it-emoji@v3` 的导出形态（`{ full/light/bare }`），避免触发 `plugin.apply is not a function` 导致预览空白。
+- 修复 Source Control / Diff 对比场景误用 Custom Editor：默认保留 VS Code 内置文本 Diff/编辑体验。
 
 ## [1.1.0] - 2026-02-05
 

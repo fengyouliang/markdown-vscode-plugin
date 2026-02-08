@@ -9,9 +9,9 @@
 
 ## Specifications
 ### 默认打开方式
-- 通过 `contributes.customEditors` 将 `*.md` / `*.markdown` 的默认编辑器设置为：
-  - `viewType: mdAutoPreview.markdownEditor`
-  - `priority: default`
+- 通过 `contributes.customEditors` 提供自定义编辑器入口（`priority: option`）
+- 扩展激活后会在“普通文本编辑器打开 Markdown”时自动重开为 Custom Editor（保持“默认打开”的体验）
+- 例外：当当前 Tab 为 Diff（如 Source Control 变更对比）时，不自动重开，保留 VS Code 内置文本 Diff/编辑体验
 
 ### 视图模式记忆（按工作区）
 - 使用 `ExtensionContext.workspaceState` 存储 `viewMode`（`editor` / `split` / `preview`）

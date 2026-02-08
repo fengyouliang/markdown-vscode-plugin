@@ -11,7 +11,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onCustomEditor:mdAutoPreview.markdownEditor"
+    "onCustomEditor:mdAutoPreview.markdownEditor",
+    "onLanguage:markdown"
   ],
   "main": "./dist/extension.js",
   "capabilities": {
@@ -51,7 +52,7 @@
             "scheme": "untitled"
           }
         ],
-        "priority": "default"
+        "priority": "option"
       }
     ]
   },
