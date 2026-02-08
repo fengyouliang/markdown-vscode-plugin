@@ -55,7 +55,15 @@ md.use(texmath, {
   }
 });
 md.use(markdownItFootnote);
-md.use(markdownItEmoji);
+// markdown-it-emoji v3 导出为 { full, light, bare }，直接 md.use(obj) 会触发 `plugin.apply is not a function`
+// 为了兼容不同版本/导出形态，这里做一次安全解析：优先 full，其次 light/bare，最后回退到函数本身。
+const emojiPlugin =
+  typeof markdownItEmoji === "function"
+    ? markdownItEmoji
+    : (markdownItEmoji?.full ?? markdownItEmoji?.light ?? markdownItEmoji?.bare);
+if (typeof emojiPlugin === "function") {
+  md.use(emojiPlugin);
+}
 md.use(markdownItTaskLists, { enabled: false });
 
 const leadingTaskMarkerRe = /^\[([ xXvV√\-\?])\][\t \u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+/;

@@ -11,6 +11,9 @@
 - Mermaid 脚本改为按需懒加载：仅在预览存在 Mermaid 占位节点时加载并渲染，减少无 Mermaid 文档的首屏资源开销。
 - 编辑回写优化：Webview → Extension 回写改为最小差异替换，降低大文件编辑时的 `WorkspaceEdit` 开销。
 
+### Fixed
+- 修复扩展激活失败：兼容 `markdown-it-emoji@v3` 的导出形态（`{ full/light/bare }`），避免触发 `plugin.apply is not a function` 导致预览空白。
+
 ## [1.1.0] - 2026-02-05
 
 ### Added
